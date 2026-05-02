@@ -1,0 +1,3 @@
+export const TRIAL_INTERNAL_VALUE_CENTS = 500;
+export const TRIAL_MAX_VIDEO_SCANS = 3;
+export const TRIAL_MAX_AUDIO_SCANS = 5;

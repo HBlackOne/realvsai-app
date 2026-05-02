@@ -1,0 +1,87 @@
+  const handleConfirm = async () => {
+    if (!selectedFile) return;
+
+    const sourceLabel = selectedFile.name || `${activeTab} input`;
+
+    setStage("scanning");
+    setError("");
+
+    try {
+      // 1. Upload file
+      const uploadForm = new FormData();
+      uploadForm.append("file", selectedFile);
+      uploadForm.append("mediaType", activeTab);
+
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadForm });
+      const uploadPayload = await uploadRes.json();
+
+      if (!uploadRes.ok || !uploadPayload?.blobUrl || !uploadPayload?.blobPathname) {
+        throw new Error(uploadPayload?.error || "Upload failed.");
+      }
+
+      const { blobUrl, blobPathname } = uploadPayload;
+
+      // 2. Create scan record
+      const createRes = await fetch("/api/scans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mediaType: activeTab,
+          videoSource: "file",
+          sourceLabel,
+          originalFilename: selectedFile.name,
+        }),
+      });
+      const createPayload = await createRes.json();
+
+      if (!createRes.ok || !createPayload?.success || !createPayload?.data?.scanId) {
+        throw new Error(createPayload?.error || "Failed to create scan record.");
+      }
+
+      const newScanId = String(createPayload.data.scanId);
+
+      // 3. Run scan
+      const runRes = await fetch(`/api/scans/${newScanId}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blobUrl, blobPathname, mediaType: activeTab }),
+      });
+
+      if (runRes.status === 429) {
+        setError("Scan limit reached. Please try again later.");
+        setStage("error");
+        return;
+      }
+
+      if (!runRes.ok) {
+        const errPayload = await runRes.json().catch(() => ({}));
+        throw new Error(errPayload?.error || "Scan failed. Please try again.");
+      }
+
+      const runPayload = await runRes.json();
+      const scanResult = runPayload?.result;
+      if (!scanResult) {
+        throw new Error("Scan failed. Please try again.");
+      }
+
+      // 4. Complete scan record
+      const completeRes = await fetch(`/api/scans/${newScanId}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result: scanResult }),
+      });
+      const completePayload = await completeRes.json();
+
+      if (!completeRes.ok || !completePayload?.success) {
+        throw new Error(completePayload?.error || "Failed to complete scan record.");
+      }
+
+      await refresh();
+      setResult(scanResult);
+      setStage("result");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Scan failed. Please try again.";
+      setError(message);
+      setStage("error");
+    }
+  };

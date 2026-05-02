@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #131314;
+  --color-surface: #1E1F20;
+  --color-surface-hover: #28292A;
+  --color-border: #303134;
+  --color-border-subtle: #28292A;
+  --color-text: #E8EAED;
+  --color-text-muted: #9AA0A6;
+  --color-text-dim: #6B7280;
+  --color-primary: #8AB4F8;
+  --color-primary-hover: #AECBFA;
+  --color-primary-dim: #8AB4F833;
+  --color-danger: #F28B82;
+  --color-success: #81C995;
+  --color-warning: #FDD663;
+}
+
+:root {
+  --bg: var(--color-bg);
+  --surface: var(--color-surface);
+  --surface2: color-mix(in srgb, var(--color-surface) 82%, var(--color-bg));
+  --surface3: var(--color-surface-hover);
+  --surface-hover: var(--color-surface-hover);
+  --border: var(--color-border);
+  --border-subtle: var(--color-border-subtle);
+  --text: var(--color-text);
+  --text-muted: var(--color-text-muted);
+  --text-dim: var(--color-text-dim);
+  --primary: var(--color-primary);
+  --primary-hover: var(--color-primary-hover);
+  --primary-dim: var(--color-primary-dim);
+  --primary-glow: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  --danger: var(--color-danger);
+  --danger-dim: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  --success: var(--color-success);
+  --success-dim: color-mix(in srgb, var(--color-success) 10%, transparent);
+  --warning: var(--color-warning);
+  --warning-dim: color-mix(in srgb, var(--color-warning) 10%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-dm-sans), "DM Sans", sans-serif;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes packSlideRight {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes packSlideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes heroFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes successRingSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes successPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.success-ring-spin {
+  animation: successRingSpin 1s linear infinite;
+}
+
+.success-pop {
+  animation: successPop 0.35s ease-out;
+}
+
+@keyframes balanceShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.balance-shimmer {
+  background: linear-gradient(90deg, rgba(48, 49, 52, 0.9) 0%, rgba(78, 79, 82, 0.95) 50%, rgba(48, 49, 52, 0.9) 100%);
+  background-size: 200% 100%;
+  animation: balanceShimmer 1.4s ease-in-out infinite;
+}
+
+.header-balance-spinner {
+  animation: successRingSpin 0.9s linear infinite;
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+.animate-pack-slide-right {
+  animation: packSlideRight 0.18s ease-out both;
+}
+
+.animate-pack-slide-left {
+  animation: packSlideLeft 0.18s ease-out both;
+}

@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TransactionType {
+  PURCHASE
+  ADJUSTMENT
+  SCAN_DEDUCTION
+  REFUND
+  SUBSCRIPTION_CREDIT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum SubscriptionStatus {
+  INACTIVE
+  ON_TRIAL
+  ACTIVE
+  PAUSED
+  PAST_DUE
+  UNPAID
+  CANCELED
+  EXPIRED
+}
+
+enum PricingPhase {
+  GROWTH
+  TRANSITION
+  SAFETY
+}
+
+enum ScanMediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+}
+
+enum ScanInputType {
+  FILE
+  URL
+}
+
+enum ScanStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+model User {
+  id                          String       @id @default(cuid())
+  clerkUserId                 String       @unique
+  email                       String       @unique
+  firstName                   String?
+  lastName                    String?
+  birthDate                   String?
+  address                     String?
+  imageUrl                    String?
+  onboardingComplete          Boolean      @default(false)
+  trialScanBalance            Int          @default(0)
+  trialVideoScans             Int          @default(0)
+  trialAudioScans             Int          @default(0)
+  isPaidUser                  Boolean      @default(false)
+  earlyAccessEligible         Boolean      @default(false)
+  earlyAccessGrantedAt        DateTime?
+  loyaltyPhaseEligible        Boolean      @default(false)
+  loyaltyPhaseGrantedAt       DateTime?
+  pricingPhase                PricingPhase @default(GROWTH)
+  estimatedHiveCostCentsMonth Int          @default(0)
+  costSoftAlertAt             DateTime?
+  costHardStopAt              DateTime?
+  hardStopDeepScansUntil      DateTime?
+  createdAt                   DateTime     @default(now())
+  updatedAt                   DateTime     @updatedAt
+
+  wallet              Wallet?
+  transactions        Transaction[]
+  subscription        Subscription?
+  billingCustomer     BillingCustomer?
+  settings            UserSettings?
+  scans               Scan[]
+  messages            AppMessage[]
+  checkoutTokens      CheckoutToken[]
+  paymentFingerprints PaymentFingerprint[]
+}
+
+model UserSettings {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  emailNotifications Boolean  @default(true)
+  scanResultEmails   Boolean  @default(true)
+  marketingEmails    Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Int      @default(0)
+  currency  String   @default("CTC")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+}
+
+model CheckoutToken {
+  id        String    @id @default(cuid())
+  token     String    @unique @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  variantId String
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+}
+
+model Transaction {
+  id                  String            @id @default(cuid())
+  userId              String
+  walletId            String
+  type                TransactionType
+  status              TransactionStatus @default(COMPLETED)
+  amount              Int
+  currency            String?           @default("USD")
+  credits             Int?
+  balanceAfter        Int?
+  description         String?
+  provider            String?
+  providerOrderId     String?           @unique
+  providerOrderNumber String?
+  providerCustomerId  String?
+  providerProductId   String?
+  providerVariantId   String?
+  providerProductName String?
+  providerVariantName String?
+  receiptUrl          String?
+  metadata            Json?
+  processedAt         DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([walletId, createdAt])
+  @@index([providerCustomerId])
+  @@index([providerVariantId])
+}
+
+model BillingCustomer {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  provider          String    @default("lemonsqueezy")
+  customerId        String    @unique
+  customerEmail     String?
+  customerName      String?
+  city              String?
+  region            String?
+  country           String?
+  status            String?
+  customerPortalUrl String?
+  lastSyncedAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id                            String             @id @default(cuid())
+  userId                        String             @unique
+  provider                      String             @default("lemonsqueezy")
+  providerSubscriptionId        String?            @unique
+  providerVariantId             String?
+  productName                   String?
+  variantName                   String?
+  cardBrand                     String?
+  cardLastFour                  String?
+  paymentProcessor              String?
+  customerPortalUrl             String?
+  updatePaymentMethodUrl        String?
+  status                        SubscriptionStatus @default(INACTIVE)
+  currentPeriodEnd              DateTime?
+  renewsAt                      DateTime?
+  endsAt                        DateTime?
+  cancelAtPeriodEnd             Boolean            @default(false)
+  lastSyncedAt                  DateTime?
+  trialVariantId                String?
+  trialEndsAt                   DateTime?
+  subscriptionCreditBalance     Int                @default(0)
+  subscriptionPlanId            String?
+  subscriptionMonthlyCredits    Int                @default(0)
+  subscriptionPriceCents        Int?
+  subscriptionPriceLocked       Boolean            @default(false)
+  subscriptionDeepVideoCount    Int                @default(0)
+  pricingPhase                  PricingPhase       @default(GROWTH)
+  // TODO Step 4: reset to 0 on subscription renewal webhook
+  // driven by Subscription.currentPeriodStartedAt
+  monthlyEstimatedHiveCostCents Int                @default(0)
+  costSoftAlertAt               DateTime?
+  costHardStopAt                DateTime?
+  currentPeriodStartedAt        DateTime?
+  createdAt                     DateTime           @default(now())
+  updatedAt                     DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PaymentFingerprint {
+  id          String   @id @default(cuid())
+  fingerprint String   @unique
+  userId      String
+  usedFor     String   @default("trial")
+  lockedAt    DateTime @default(now())
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([lockedAt])
+}
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventName   String
+  eventId     String    @unique
+  payload     Json
+  processed   Boolean   @default(false)
+  processedAt DateTime?
+  error       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([provider, eventName])
+}
+
+model Scan {
+  id                     String        @id @default(cuid())
+  userId                 String
+  mediaType              ScanMediaType
+  inputType              ScanInputType
+  status                 ScanStatus    @default(PENDING)
+  sourceLabel            String
+  sourceUrl              String?
+  originalFilename       String?
+  costCredits            Int
+  isDeepVideo            Boolean       @default(false)
+  estimatedHiveCostCents Int?
+  // Step 5 cache key plan: SHA-256(fileBuffer + scanType + mode/version).
+  // URL fallback: normalize by stripping query params, lowercasing, and removing trailing slash.
+  cacheKey               String?
+  hiveRequestId          String?
+  verdict                String?
+  confidence             Int?
+  aiScore                Float?
+  humanScore             Float?
+  processingTimeMs       Int?
+  generators             Json?
+  rawResult              Json?
+  errorMessage           String?
+  completedAt            DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, isDeepVideo, createdAt])
+  @@index([status, createdAt])
+  @@index([mediaType, createdAt])
+  @@index([cacheKey])
+}
+
+model AppMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  isRead    Boolean  @default(false)
+  dedupeKey String?  @unique
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, isRead, createdAt])
+}
