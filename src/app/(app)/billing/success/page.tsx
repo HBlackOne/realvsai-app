@@ -21,13 +21,7 @@ async function validateToken(token: string | undefined) {
     const record = await db.checkoutToken.findUnique({ where: { token } });
 
     if (!record) return null;
-    if (record.usedAt) return null;
     if (record.expiresAt < new Date()) return null;
-
-    await db.checkoutToken.update({
-      where: { id: record.id },
-      data: { usedAt: new Date() },
-    });
 
     return record;
   } catch {
