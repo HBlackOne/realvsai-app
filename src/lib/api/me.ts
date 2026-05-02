@@ -8,6 +8,7 @@ export type AppMeData = {
   address: string | null;
   imageUrl: string | null;
   onboardingComplete: boolean;
+  earlyAccessEligible: boolean;
   unreadMessagesCount: number;
   createdAt: string;
   updatedAt: string;

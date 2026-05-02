@@ -2,6 +2,7 @@ import "server-only";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { isEarlyAccessActive } from "@/lib/billing/config";
 import { ensureUserWallet } from "@/lib/services/wallet";
 
 type ClerkBootstrapInput = {
@@ -47,6 +48,7 @@ export async function getOrCreateUserFromClerk(input: ClerkBootstrapInput) {
       firstName: input.firstName ?? null,
       lastName: input.lastName ?? null,
       imageUrl: input.imageUrl ?? null,
+      earlyAccessEligible: isEarlyAccessActive(),
       wallet: {
         create: {
           balance: 0,

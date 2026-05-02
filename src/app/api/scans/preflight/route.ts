@@ -50,10 +50,13 @@ export async function POST(request: Request) {
     const currentDeepVideoCount = subscription?.subscriptionDeepVideoCount ?? 0;
     const deepVideo = (() => {
       if (user.trialScanBalance > 0) {
-        return {
-          available: false,
-          reason: "Blocked during trial",
-        };
+        const isProTrial =
+          subscription?.status === "ON_TRIAL" &&
+          subscription?.subscriptionPlanId === "pro";
+        if (!isProTrial) {
+          return { available: false, reason: "Upgrade required" };
+        }
+        // Pro trial → fall through to normal deep video check
       }
       if (activePlan && hasSubscriptionCredits) {
         const remaining = Math.max(activePlan.deepVideoMonthlyLimit - currentDeepVideoCount, 0);

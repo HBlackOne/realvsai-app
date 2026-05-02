@@ -7,7 +7,6 @@ const isPublicRoute = createRouteMatcher([
   "/verify(.*)",
   "/api/webhooks(.*)",
   "/api/billing/webhook(.*)",
-  "/api/validate-billing(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -33,6 +32,9 @@ export default clerkMiddleware(async (auth, req) => {
     req.cookies.get("realvsai_onboarding_complete")?.value !== "1" &&
     !pathname.startsWith("/api") &&
     !pathname.startsWith("/billing") &&
+    !pathname.startsWith("/verify") &&
+    !pathname.startsWith("/reset") &&
+    !pathname.startsWith("/login") &&
     pathname !== "/welcome"
   ) {
     return NextResponse.redirect(new URL("/welcome", origin));

@@ -11,6 +11,7 @@ function env(primary: string, fallback?: string) {
 }
 
 const CREDIT_VARIANT_ENVS: Record<WalletTopupId, string | undefined> = {
+  nano: env("LEMONSQUEEZY_VARIANT_CREDITS_NANO"),
   starter: env("LEMONSQUEEZY_VARIANT_CREDITS_STARTER"),
   basic: env("LEMONSQUEEZY_VARIANT_CREDITS_BASIC"),
   standard: env("LEMONSQUEEZY_VARIANT_CREDITS_STANDARD"),
@@ -19,6 +20,7 @@ const CREDIT_VARIANT_ENVS: Record<WalletTopupId, string | undefined> = {
 };
 
 export const TOPUP_PRODUCT_LABELS: Record<WalletTopupId, string> = {
+  nano: "Nano",
   starter: "Starter",
   basic: "Basic",
   standard: "Standard",
@@ -45,32 +47,20 @@ export const SUBSCRIPTION_VARIANT_ENVS = {
   proNormal: env("LS_VARIANT_PRO_NORMAL", "LEMONSQUEEZY_VARIANT_PRO_NORMAL"),
 } as const;
 
-// Legacy env fallbacks used by existing webhook compatibility code while V5 is wired in.
-const LEGACY_SUBSCRIPTION_VARIANT_ENVS: Record<
-  EarlyAccessPlanId,
-  string | undefined
-> = {
-  basic: env("LEMONSQUEEZY_VARIANT_SUBSCRIPTION_BASIC"),
-  pro: env("LEMONSQUEEZY_VARIANT_SUBSCRIPTION_PRO"),
-};
-
-const LEGACY_SUBSCRIPTION_CURRENT_VARIANT_ENVS: Record<
-  EarlyAccessPlanId,
-  string | undefined
-> = {
-  basic: env("LEMONSQUEEZY_VARIANT_SUBSCRIPTION_BASIC_CURRENT"),
-  pro: env("LEMONSQUEEZY_VARIANT_SUBSCRIPTION_PRO_CURRENT"),
-};
-
 export const SUBSCRIPTION_PLAN_LABELS: Record<EarlyAccessPlanId, string> = {
   basic: "Basic",
   pro: "Pro",
 };
 
 export function isEarlyAccessActive() {
-  return (
-    String(process.env.EARLY_ACCESS_ACTIVE || "true").toLowerCase() === "true"
-  );
+  if (
+    String(process.env.EARLY_ACCESS_ENABLED || "true").toLowerCase() !==
+    "true"
+  )
+    return false;
+  const endsAt = process.env.EARLY_ACCESS_ENDS_AT;
+  if (!endsAt) return true;
+  return new Date() < new Date(endsAt);
 }
 
 export function getLemonConfig() {
@@ -197,29 +187,7 @@ export function getSubscriptionPlanByVariantId(
     return "pro";
   }
 
-  const legacyEarlyAccessMatch = Object.entries(
-    LEGACY_SUBSCRIPTION_VARIANT_ENVS,
-  ).find(
-    ([, mappedVariantId]) =>
-      mappedVariantId && String(mappedVariantId) === normalizedVariantId,
-  );
-
-  if (legacyEarlyAccessMatch) {
-    return legacyEarlyAccessMatch[0] as EarlyAccessPlanId;
-  }
-
-  const legacyCurrentMatch = Object.entries(
-    LEGACY_SUBSCRIPTION_CURRENT_VARIANT_ENVS,
-  ).find(
-    ([, mappedVariantId]) =>
-      mappedVariantId && String(mappedVariantId) === normalizedVariantId,
-  );
-
-  if (!legacyCurrentMatch) {
-    return null;
-  }
-
-  return legacyCurrentMatch[0] as EarlyAccessPlanId;
+  return null;
 }
 
 export function assertLemonConfig() {

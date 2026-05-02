@@ -15,6 +15,12 @@ export const PRICING_MODES = {
       deepVideo: 80,
     },
     walletTopups: {
+      nano: {
+        id: "nano",
+        label: "Nano",
+        priceCents: 500,
+        walletValueCents: 200,
+      },
       starter: {
         id: "starter",
         label: "Starter",
@@ -54,9 +60,9 @@ export const PRICING_MODES = {
     },
     subscriptions: {
       basic: { deepVideoMonthlyLimit: 0 },
-      proEarlyAccess: { deepVideoMonthlyLimit: 12 },
-      proLoyalty: { deepVideoMonthlyLimit: 12 },
-      proNormal: { deepVideoMonthlyLimit: 20 },
+      proEarlyAccess: { deepVideoMonthlyLimit: 15 },
+      proLoyalty: { deepVideoMonthlyLimit: 15 },
+      proNormal: { deepVideoMonthlyLimit: 25 },
     },
   },
   transition: {
@@ -69,6 +75,12 @@ export const PRICING_MODES = {
       deepVideo: 80,
     },
     walletTopups: {
+      nano: {
+        id: "nano",
+        label: "Nano",
+        priceCents: 500,
+        walletValueCents: 200,
+      },
       starter: {
         id: "starter",
         label: "Starter",
@@ -108,9 +120,9 @@ export const PRICING_MODES = {
     },
     subscriptions: {
       basic: { deepVideoMonthlyLimit: 0 },
-      proEarlyAccess: { deepVideoMonthlyLimit: 12 },
-      proLoyalty: { deepVideoMonthlyLimit: 12 },
-      proNormal: { deepVideoMonthlyLimit: 20 },
+      proEarlyAccess: { deepVideoMonthlyLimit: 15 },
+      proLoyalty: { deepVideoMonthlyLimit: 15 },
+      proNormal: { deepVideoMonthlyLimit: 25 },
     },
   },
   safety: {
@@ -123,6 +135,12 @@ export const PRICING_MODES = {
       deepVideo: 100,
     },
     walletTopups: {
+      nano: {
+        id: "nano",
+        label: "Nano",
+        priceCents: 500,
+        walletValueCents: 200,
+      },
       starter: {
         id: "starter",
         label: "Starter",
@@ -161,9 +179,9 @@ export const PRICING_MODES = {
     },
     subscriptions: {
       basic: { deepVideoMonthlyLimit: 1 },
-      proEarlyAccess: { deepVideoMonthlyLimit: 12 },
-      proLoyalty: { deepVideoMonthlyLimit: 12 },
-      proNormal: { deepVideoMonthlyLimit: 20 },
+      proEarlyAccess: { deepVideoMonthlyLimit: 15 },
+      proLoyalty: { deepVideoMonthlyLimit: 15 },
+      proNormal: { deepVideoMonthlyLimit: 25 },
     },
   },
 } as const;
@@ -245,6 +263,12 @@ export const EARLY_ACCESS_PLANS = {
 export type EarlyAccessPlanId = keyof typeof EARLY_ACCESS_PLANS;
 
 export const WALLET_TOPUPS = {
+  nano: {
+    ...ACTIVE_PRICING.walletTopups.nano,
+    bonusCents:
+      ACTIVE_PRICING.walletTopups.nano.walletValueCents -
+      ACTIVE_PRICING.walletTopups.nano.priceCents,
+  },
   starter: {
     ...ACTIVE_PRICING.walletTopups.starter,
     bonusCents:

@@ -14,6 +14,7 @@ type UserWithRelations = {
   address: string | null;
   imageUrl: string | null;
   onboardingComplete: boolean;
+  earlyAccessEligible: boolean;
   unreadMessagesCount: number;
   trialScanBalance: number;
   trialVideoScans: number;
@@ -43,6 +44,7 @@ export function serializeMe({ user, latestPurchase, paymentHistory = [] }: Seria
     address: user.address,
     imageUrl: user.imageUrl,
     onboardingComplete: user.onboardingComplete,
+    earlyAccessEligible: user.earlyAccessEligible,
     unreadMessagesCount: user.unreadMessagesCount,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),

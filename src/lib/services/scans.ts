@@ -47,9 +47,14 @@ export type TrialBlockReason =
   | "subscription_deep_video_limit_reached";
 
 function getTodayStart() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
+  const now = new Date();
+  return new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+    ),
+  );
 }
 
 function isDeepVideoCost(costCredits: number) {
@@ -953,11 +958,11 @@ export function serializeScan(
 }
 
 function parseProcessingTime(value: string) {
-  const seconds = Number.parseInt(value, 10);
+  const seconds = Number.parseFloat(value);
 
   if (Number.isNaN(seconds)) {
     return null;
   }
 
-  return seconds * 1000;
+  return Math.round(seconds * 1000);
 }
