@@ -232,12 +232,11 @@ export function OnboardingWizard() {
     setError(null);
   };
 
-  const markWelcomeSeen = async () => {
-    const response = await fetch("/api/welcome/seen", { method: "POST" });
+  const markOnboardingComplete = async () => {
+    const response = await fetch("/api/onboarding/complete", { method: "POST" });
     const payload = await response.json().catch(() => null);
-
     if (!response.ok || !payload?.success) {
-      throw new Error(payload?.error || "Unable to save welcome state.");
+      throw new Error(payload?.error || "Unable to save onboarding state.");
     }
   };
 
@@ -252,7 +251,7 @@ export function OnboardingWizard() {
     setError(null);
 
     try {
-      await markWelcomeSeen();
+      await markOnboardingComplete();
 
       const res = await fetch("/api/billing/checkout/trial", { method: "POST" });
       const payload = await res.json();
@@ -275,7 +274,7 @@ export function OnboardingWizard() {
     setError(null);
 
     try {
-      await markWelcomeSeen();
+      await markOnboardingComplete();
       window.location.href = DASHBOARD_URL;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to continue.");

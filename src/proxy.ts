@@ -11,17 +11,31 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  const { pathname, search, origin } = req.nextUrl;
+
   if (!isPublicRoute(req)) {
     await auth.protect();
   }
 
-  if (req.nextUrl.pathname === "/welcome") {
+  if (pathname === "/welcome") {
     const onboardingComplete = req.cookies.get("realvsai_onboarding_complete")?.value === "1";
     const hasSeenWelcome = req.cookies.get("hasSeenWelcome")?.value === "1";
 
     if (onboardingComplete || hasSeenWelcome) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
+    return;
+  }
+
+  // New users: redirect to /welcome
+  if (
+    !isPublicRoute(req) &&
+    req.cookies.get("realvsai_onboarding_complete")?.value !== "1" &&
+    !pathname.startsWith("/api") &&
+    !pathname.startsWith("/billing") &&
+    pathname !== "/welcome"
+  ) {
+    return NextResponse.redirect(new URL("/welcome", origin));
   }
 });
 
