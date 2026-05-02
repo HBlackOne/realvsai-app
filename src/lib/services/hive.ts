@@ -2,7 +2,7 @@ import "server-only";
 
 import type { MediaType } from "@/components/universal-detector/types";
 
-const HIVE_SYNC_ENDPOINT = "https://api.thehive.ai/api/v2/task/sync";
+const HIVE_SYNC_ENDPOINT = "https://api.thehive.ai/api/v3/hive/ai-generated-and-deepfake-content-detection";
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 
 export type HiveRawResponse = unknown;
@@ -51,12 +51,12 @@ async function callHiveWithKey({
   const response = await fetch(HIVE_SYNC_ENDPOINT, {
     method: "POST",
     headers: {
-      Authorization: `Token ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      url: blobUrl,
-      mediaType,
+      media_metadata: true,
+      input: [{ media_url: blobUrl }],
     }),
   });
 

@@ -33,6 +33,11 @@ const DAILY_SHORT_VIDEO_SCAN_LIMIT = 10;
 const DAILY_DEEP_VIDEO_SCAN_LIMIT = 5;
 
 export type TrialBlockReason =
+  | "daily_limit_reached"
+  | "trial_limit_reached"
+  | "wallet_limit_reached"
+  | "basic_limit_reached"
+  | "pro_limit_reached"
   | "daily_short_video_limit_reached"
   | "daily_deep_video_limit_reached"
   | "trial_deep_video_blocked"
@@ -75,10 +80,10 @@ function resolveDeepVideoMonthlyLimit({
   }
 
   if (subscriptionPlanId === "pro") {
-    if (pricingPhase === PricingPhase.SAFETY) return 20;
-    if (pricingPhase === PricingPhase.TRANSITION) return 12;
-    if (pricingPhase === PricingPhase.GROWTH) return 12;
-    return 12;
+    if (pricingPhase === PricingPhase.SAFETY) return 25;
+    if (pricingPhase === PricingPhase.TRANSITION) return 15;
+    if (pricingPhase === PricingPhase.GROWTH) return 15;
+    return 15;
   }
 
   return 0;
@@ -250,14 +255,78 @@ async function validateDailyVideoCap({
   mediaType: MediaType;
   costCredits: number;
 }): Promise<{ allowed: true } | { allowed: false; reason: TrialBlockReason }> {
+  // --- Global daily scan cap (all types, all users) ---
+  const since = getTodayStart();
+  const requestedDeepVideo = isDeepVideoScan(mediaType, costCredits);
+
+  // Resolve Pro-level access from subscription state
+  const subscription = await db.subscription.findUnique({
+    where: { userId },
+    select: { status: true, subscriptionPlanId: true },
+  });
+  const isProLevel =
+    subscription?.status === "ON_TRIAL" ||
+    (subscription?.status === "ACTIVE" &&
+      subscription?.subscriptionPlanId === "pro");
+  const isTrial =
+    subscription?.status === "ON_TRIAL";
+
+  // Global daily cap by user tier
+  let globalDailyLimit: number;
+  if (isProLevel) {
+    globalDailyLimit = PROTECTION_LIMITS.maxTotalScansPerDayPro;
+  } else if (isTrial) {
+    globalDailyLimit = PROTECTION_LIMITS.maxTotalScansPerDayTrial;
+  } else if (
+    subscription?.status === "ACTIVE" &&
+    subscription?.subscriptionPlanId === "basic"
+  ) {
+    globalDailyLimit = PROTECTION_LIMITS.maxTotalScansPerDayBasic;
+  } else {
+    // wallet-only or no subscription
+    globalDailyLimit = PROTECTION_LIMITS.maxTotalScansPerDayWallet;
+  }
+
+  const todayTotalCount = await db.scan.count({
+    where: {
+      userId,
+      createdAt: { gte: since },
+      status: { notIn: [ScanStatus.FAILED, ScanStatus.CANCELED] },
+    },
+  });
+
+  if (todayTotalCount >= globalDailyLimit) {
+    let reason: TrialBlockReason = "daily_limit_reached";
+    if (isProLevel) {
+      reason = "pro_limit_reached";
+    } else if (isTrial) {
+      reason = "trial_limit_reached";
+    } else if (
+      subscription?.status === "ACTIVE" &&
+      subscription?.subscriptionPlanId === "basic"
+    ) {
+      reason = "basic_limit_reached";
+    } else {
+      reason = "wallet_limit_reached";
+    }
+    return { allowed: false, reason };
+  }
+
+  // Short-circuit for non-video
   if (mediaType !== "video" && mediaType !== "video-deep") {
     return { allowed: true };
   }
 
-  const since = getTodayStart();
-  const requestedDeepVideo = isDeepVideoScan(mediaType, costCredits);
-
+  // --- Deep video access rules ---
   if (requestedDeepVideo) {
+    // Block Basic or wallet-only (no active Pro/EA sub, no ON_TRIAL Pro)
+    if (!isProLevel) {
+      return {
+        allowed: false,
+        reason: "trial_deep_video_blocked",
+      };
+    }
+
     const user = await db.user.findUnique({
       where: { id: userId },
       select: {
@@ -305,6 +374,7 @@ async function validateDailyVideoCap({
     return { allowed: true };
   }
 
+  // Short video daily cap
   const todayShortVideoCount = await db.scan.count({
     where: {
       userId,

@@ -79,7 +79,7 @@ export function getLemonConfig() {
     storeId: env("LS_STORE_ID", "LEMONSQUEEZY_STORE_ID") || "",
     webhookSecret:
       env("LS_WEBHOOK_SECRET", "LEMONSQUEEZY_WEBHOOK_SECRET") || "",
-    appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3011",
+    appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3021",
     premiumVariantId: process.env.LEMONSQUEEZY_VARIANT_PREMIUM || "",
   };
 }

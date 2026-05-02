@@ -49,28 +49,41 @@ function getClassName(item: HiveClass) {
 }
 
 function getClassScore(item: HiveClass) {
-  return toScore(item.score ?? item.confidence ?? item.value);
+  return toScore(item.value ?? item.score ?? item.confidence);
 }
 
 function collectTopLevelClasses(raw: HiveRawResponse): HiveClass[] {
   if (!raw || typeof raw !== "object") return [];
-
   const root = raw as Record<string, unknown>;
-  const candidates = [
-    root.classes,
-    root.output,
-    root.response,
-    root.result,
-    root.data,
-  ];
 
+  // V3 response: { output: [{ classes: [...] }] }
+  if (Array.isArray(root.output) && root.output.length > 0) {
+    const frames = root.output as Array<{ classes?: HiveClass[] }>;
+
+    // Find frame with highest ai_generated score
+    let bestFrame = frames[0];
+    let bestScore = 0;
+
+    for (const frame of frames) {
+      const classes = frame.classes ?? [];
+      const aiScore = classes.reduce((max, item) => {
+        if (getClassName(item) !== "ai_generated") return max;
+        return Math.max(max, getClassScore(item));
+      }, 0);
+
+      if (aiScore > bestScore) {
+        bestScore = aiScore;
+        bestFrame = frame;
+      }
+    }
+
+    return bestFrame?.classes ?? [];
+  }
+
+  // Fallback for other shapes
+  const candidates = [root.classes, root.response, root.result, root.data];
   for (const candidate of candidates) {
     if (Array.isArray(candidate)) return candidate as HiveClass[];
-
-    if (candidate && typeof candidate === "object") {
-      const nested = candidate as Record<string, unknown>;
-      if (Array.isArray(nested.classes)) return nested.classes as HiveClass[];
-    }
   }
 
   return [];
@@ -78,24 +91,19 @@ function collectTopLevelClasses(raw: HiveRawResponse): HiveClass[] {
 
 function collectAudioChunks(raw: HiveRawResponse): HiveAudioChunk[] {
   if (!raw || typeof raw !== "object") return [];
-
   const root = raw as Record<string, unknown>;
-  const candidates = [
-    root.chunks,
-    root.output,
-    root.response,
-    root.result,
-    root.data,
-  ];
 
+  // V3 response: { output: [{ classes: [...] }] }
+  if (Array.isArray(root.output) && root.output.length > 0) {
+    return (root.output as Array<{ classes?: HiveClass[] }>).map((frame) => ({
+      classes: frame.classes ?? [],
+    }));
+  }
+
+  // Fallback
+  const candidates = [root.chunks, root.response, root.result, root.data];
   for (const candidate of candidates) {
     if (Array.isArray(candidate)) return candidate as HiveAudioChunk[];
-
-    if (candidate && typeof candidate === "object") {
-      const nested = candidate as Record<string, unknown>;
-      if (Array.isArray(nested.chunks))
-        return nested.chunks as HiveAudioChunk[];
-    }
   }
 
   return [];

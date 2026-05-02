@@ -116,17 +116,27 @@ export async function POST(request: Request) {
 
     if (!validation.allowed) {
       const reasonMessages: Record<string, string> = {
+        daily_limit_reached:
+          "Daily scan limit reached. Resets at midnight.",
         daily_short_video_limit_reached:
           "Daily short video scan limit reached. Try again tomorrow.",
         daily_deep_video_limit_reached:
           "Daily deep video scan limit reached. Try again tomorrow.",
         trial_deep_video_blocked:
-          "Deep video scans are not available during the trial. Upgrade to unlock.",
+          "Deep video scanning requires a Pro plan.",
         trial_video_limit_reached: "Video scan limit reached during trial.",
         trial_audio_limit_reached: "Audio scan limit reached during trial.",
         trial_balance_insufficient: "Insufficient trial balance for this scan.",
         subscription_deep_video_limit_reached:
           "Monthly deep video limit reached for your subscription plan.",
+        trial_limit_reached:
+          "You've reached your trial scan limit for today. Upgrade to continue scanning.",
+        wallet_limit_reached:
+          "Daily scan limit reached. Resets at midnight.",
+        basic_limit_reached:
+          "Daily scan limit reached. Resets at midnight.",
+        pro_limit_reached:
+          "Daily scan limit reached. Resets at midnight.",
       };
       return NextResponse.json(
         {

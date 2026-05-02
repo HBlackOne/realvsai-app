@@ -9,41 +9,41 @@ export const PRICING_MODES = {
     id: "growth",
     name: "Growth Mode",
     scanPrices: {
-      image: 5,
+      image: 2,
       audio: 40,
-      videoShort: 100,
-      deepVideo: 240,
+      videoShort: 30,
+      deepVideo: 80,
     },
     walletTopups: {
       starter: {
         id: "starter",
         label: "Starter",
         priceCents: 1000,
-        walletValueCents: 1100,
+        walletValueCents: 500,
       },
       basic: {
         id: "basic",
         label: "Basic",
         priceCents: 1500,
-        walletValueCents: 1700,
+        walletValueCents: 800,
       },
       standard: {
         id: "standard",
         label: "Standard",
         priceCents: 2000,
-        walletValueCents: 2400,
+        walletValueCents: 1100,
       },
       pro: {
         id: "pro",
         label: "Pro",
         priceCents: 3000,
-        walletValueCents: 3600,
+        walletValueCents: 1700,
       },
       elite: {
         id: "elite",
         label: "Elite",
         priceCents: 5000,
-        walletValueCents: 6500,
+        walletValueCents: 3000,
       },
     },
     netRevenueCents: {
@@ -63,41 +63,41 @@ export const PRICING_MODES = {
     id: "transition",
     name: "Transition Mode",
     scanPrices: {
-      image: 5,
+      image: 2,
       audio: 40,
-      videoShort: 100,
-      deepVideo: 240,
+      videoShort: 30,
+      deepVideo: 80,
     },
     walletTopups: {
       starter: {
         id: "starter",
         label: "Starter",
         priceCents: 1000,
-        walletValueCents: 950,
+        walletValueCents: 400,
       },
       basic: {
         id: "basic",
         label: "Basic",
         priceCents: 1500,
-        walletValueCents: 1450,
+        walletValueCents: 650,
       },
       standard: {
         id: "standard",
         label: "Standard",
         priceCents: 2000,
-        walletValueCents: 2000,
+        walletValueCents: 900,
       },
       pro: {
         id: "pro",
         label: "Pro",
         priceCents: 3000,
-        walletValueCents: 3000,
+        walletValueCents: 1400,
       },
       elite: {
         id: "elite",
         label: "Elite",
         priceCents: 5000,
-        walletValueCents: 5200,
+        walletValueCents: 2500,
       },
     },
     netRevenueCents: {
@@ -117,41 +117,41 @@ export const PRICING_MODES = {
     id: "safety",
     name: "Safety Mode",
     scanPrices: {
-      image: 6,
-      audio: 45,
-      videoShort: 110,
-      deepVideo: 320,
+      image: 3,
+      audio: 50,
+      videoShort: 40,
+      deepVideo: 100,
     },
     walletTopups: {
       starter: {
         id: "starter",
         label: "Starter",
         priceCents: 1000,
-        walletValueCents: 800,
+        walletValueCents: 400,
       },
       basic: {
         id: "basic",
         label: "Basic",
         priceCents: 1500,
-        walletValueCents: 1200,
+        walletValueCents: 650,
       },
       standard: {
         id: "standard",
         label: "Standard",
         priceCents: 2000,
-        walletValueCents: 1700,
+        walletValueCents: 900,
       },
       pro: {
         id: "pro",
         label: "Pro",
         priceCents: 3000,
-        walletValueCents: 2600,
+        walletValueCents: 1400,
       },
       elite: {
         id: "elite",
         label: "Elite",
         priceCents: 5000,
-        walletValueCents: 4500,
+        walletValueCents: 2500,
       },
     },
     netRevenueCents: {
@@ -179,7 +179,7 @@ export const SUBSCRIPTION_PHASES = {
     planId: "basic",
     name: "Basic",
     priceCents: 799,
-    monthlyCredits: 600,
+    monthlyCredits: 300,
     deepVideoMonthlyLimit:
       ACTIVE_PRICING.subscriptions.basic.deepVideoMonthlyLimit,
   },
@@ -188,7 +188,7 @@ export const SUBSCRIPTION_PHASES = {
     planId: "pro",
     name: "Pro",
     priceCents: 999,
-    monthlyCredits: 1400,
+    monthlyCredits: 700,
     deepVideoMonthlyLimit:
       ACTIVE_PRICING.subscriptions.proEarlyAccess.deepVideoMonthlyLimit,
   },
@@ -197,7 +197,7 @@ export const SUBSCRIPTION_PHASES = {
     planId: "pro",
     name: "Pro",
     priceCents: 1299,
-    monthlyCredits: 1100,
+    monthlyCredits: 600,
     deepVideoMonthlyLimit:
       ACTIVE_PRICING.subscriptions.proLoyalty.deepVideoMonthlyLimit,
   },
@@ -206,7 +206,7 @@ export const SUBSCRIPTION_PHASES = {
     planId: "pro",
     name: "Pro",
     priceCents: 1499,
-    monthlyCredits: 900,
+    monthlyCredits: 500,
     deepVideoMonthlyLimit:
       ACTIVE_PRICING.subscriptions.proNormal.deepVideoMonthlyLimit,
   },
@@ -290,8 +290,12 @@ export const SCAN_PRICES = {
 
 export const PROTECTION_LIMITS = {
   maxDeepScansPerDay: 5,
-  maxDeepScansPerMonthEarlyAccessPro: 12,
-  maxDeepScansPerMonthNormalPro: 20,
+  maxTotalScansPerDayTrial: 5,
+  maxTotalScansPerDayWallet: 5,
+  maxTotalScansPerDayBasic: 10,
+  maxTotalScansPerDayPro: 20,
+  maxDeepScansPerMonthEarlyAccessPro: 15,
+  maxDeepScansPerMonthNormalPro: 25,
   maxShortVideoScansPerDay: 10,
   maxFailedRetriesPerDay: 5,
   costSoftAlertBps: 8000,
@@ -302,9 +306,9 @@ export const PROTECTION_LIMITS = {
 } as const;
 
 export const HIVE_ESTIMATED_COSTS = {
-  image: 2,
-  audio: 25,
-  video15: 80,
-  video30: 80,
-  video60: 150,
+  image: 0.6,
+  audio: 33.4,
+  video15: 9.0,
+  video30: 9.0,
+  video60: 36.0,
 } as const;
