@@ -11,6 +11,17 @@ export type UserStateKind =
   | "free"
   | "trial_expired";
 
+export function getPlanLabel(me: AppMeData | null): string {
+  if (!me?.subscription) {
+    return me?.trial?.balance || me?.trial?.trialEndsAt ? "Free Trial" : "No active plan";
+  }
+  const variant = me.subscription.variantName?.trim();
+  if (variant) return variant;
+  const product = me.subscription.productName?.trim();
+  if (product) return product;
+  return me.subscription.status === "ON_TRIAL" ? "Free Trial" : "No active plan";
+}
+
 export function resolveUserState(me: AppMeData | null): UserStateKind {
   if (!me) return "free";
 

@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback } from "react";
 import { ArrowLeft, ArrowRight, Upload, ShieldCheck, ClipboardCheck, CheckCircle2 } from "lucide-react";
 import { SmartButton } from "@/components/ui/SmartButton";
-import { useCheckout } from "@/hooks/use-checkout";
-import { useAppMe } from "@/hooks/use-app-me";
 
 type Step = {
   num: string;
@@ -208,13 +205,11 @@ function FinalCard({
   onBack,
   onMaybeLater,
   onStartTrial,
-  trialLoading,
   earlyAccessEligible,
 }: {
   onBack: () => void;
   onMaybeLater: () => Promise<void>;
   onStartTrial: () => Promise<void>;
-  trialLoading: boolean;
   earlyAccessEligible: boolean;
 }) {
   return (
@@ -256,6 +251,7 @@ function FinalCard({
           successLabel="Opening checkout..."
           variant="primary"
           onClick={onStartTrial}
+          persistentSuccess
         />
 
         <SmartButton
@@ -280,43 +276,20 @@ function FinalCard({
   );
 }
 
-export function OnboardingWizard() {
-  const router = useRouter();
-  const { me } = useAppMe();
-  const { openCheckout, loading: checkoutLoading } = useCheckout();
-
+export function OnboardingWizard({
+  earlyAccessEligible,
+  onStartTrial,
+  trialLoading,
+}: {
+  earlyAccessEligible: boolean;
+  onStartTrial: () => Promise<void>;
+  trialLoading: boolean;
+}) {
   const [step, setStep] = useState(0);
-  const [animKey, setAnimKey] = useState(0);
 
-  const markOnboardingComplete = async () => {
-    const response = await fetch("/api/onboarding/complete", { method: "POST" });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok || !payload?.success) {
-      throw new Error(payload?.error || "Unable to save onboarding state.");
-    }
-  };
-
-  const goTo = (n: number) => {
+  const goTo = useCallback((n: number) => {
     setStep(n);
-    setAnimKey((k) => k + 1);
-  };
-
-  const handleStartTrial = async () => {
-    await markOnboardingComplete();
-    await openCheckout(async () => {
-      const res = await fetch("/api/billing/checkout/trial", { method: "POST" });
-      const payload = await res.json();
-      if (!res.ok || !payload?.success || !payload?.data?.checkoutUrl) {
-        throw new Error(payload?.error || "Unable to start trial checkout.");
-      }
-      return payload.data.checkoutUrl;
-    });
-  };
-
-  const handleMaybeLater = async () => {
-    await markOnboardingComplete();
-    router.push("/dashboard");
-  };
+  }, []);
 
   const cur = step < TOTAL ? STEPS[step] : null;
 
@@ -325,7 +298,7 @@ export function OnboardingWizard() {
       <StepProgress step={step} />
 
       <div
-        key={animKey}
+        key={step}
         className="flex min-h-[260px] flex-col rounded-[20px] border border-border bg-surface p-[26px] animate-[fadeSlideIn_220ms_ease]"
       >
         {cur ? (
@@ -338,10 +311,12 @@ export function OnboardingWizard() {
         ) : (
           <FinalCard
             onBack={() => goTo(step - 1)}
-            onMaybeLater={handleMaybeLater}
-            onStartTrial={handleStartTrial}
-            trialLoading={checkoutLoading}
-            earlyAccessEligible={me?.earlyAccessEligible ?? false}
+            onMaybeLater={async () => {
+              await fetch("/api/onboarding/complete", { method: "POST" });
+              window.location.href = "/dashboard";
+            }}
+            onStartTrial={onStartTrial}
+            earlyAccessEligible={earlyAccessEligible}
           />
         )}
       </div>

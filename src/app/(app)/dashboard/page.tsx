@@ -9,20 +9,11 @@ import { QuickScan } from "@/components/dashboard/QuickScan";
 import { RecentScans, type Scan } from "@/components/dashboard/RecentScans";
 import { AppSectionHeader } from "@/components/app-shell/AppPage";
 import { GrowthNudge } from "@/components/dashboard/GrowthNudge";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { useAppMe } from "@/hooks/use-app-me";
 import { useDashboardScans } from "@/hooks/use-dashboard-scans";
-import { resolveUserState } from "@/lib/user-state";
+import { resolveUserState, getPlanLabel } from "@/lib/user-state";
 import { getGrowthMessage } from "@/lib/growth-messages";
-
-function toPlanLabel(me: ReturnType<typeof useAppMe>["me"]) {
-  if (!me?.subscription) return me?.trial?.balance || me?.trial?.trialEndsAt ? "Free Trial" : "No active plan";
-
-  const variant = me.subscription.variantName?.trim();
-  if (variant) return variant;
-  const product = me.subscription.productName?.trim();
-  if (product) return product;
-  return me.subscription.status === "ON_TRIAL" ? "Free Trial" : "No active plan";
-}
 
 function buildChartData(createdAtValues: string[]) {
   const labels = ["S", "M", "T", "W", "T", "F", "S"];
@@ -189,7 +180,7 @@ export default function DashboardPage() {
   });
 
   const firstName = me?.firstName || user?.firstName || "there";
-  const planLabel = toPlanLabel(me);
+  const planLabel = getPlanLabel(me);
 
   const uiScans = useMemo<Scan[]>(() => {
     return recentScans.slice(0, 5).map((scan) => ({
@@ -221,7 +212,13 @@ export default function DashboardPage() {
 
       <div className="mb-4 lg:hidden">
         <h1 className="text-xl font-semibold text-text">Welcome back, {firstName}</h1>
-        <p className="mt-1 text-sm text-text-dim">⚡ {spendableCredits} credits • {planLabel}</p>
+        {!me ? (
+          <SkeletonText className="mt-1 w-32" />
+        ) : (
+          <p className="mt-1 text-sm text-text-dim">
+            ⚡ {spendableCredits} credits • {planLabel}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-8 lg:hidden">
@@ -273,7 +270,13 @@ export default function DashboardPage() {
       </div>
 
       <div className="mb-4 hidden lg:block">
-        <p className="text-sm text-text-dim">⚡ {spendableCredits} credits • {planLabel}</p>
+        {!me ? (
+          <SkeletonText className="w-32" />
+        ) : (
+          <p className="text-sm text-text-dim">
+            ⚡ {spendableCredits} credits • {planLabel}
+          </p>
+        )}
       </div>
 
       <div className="hidden gap-8 lg:grid lg:grid-cols-[minmax(0,1.2fr)_320px]">

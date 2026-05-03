@@ -14,6 +14,8 @@ type SmartButtonProps = {
   disabled?: boolean;
   className?: string;
   onClick: () => Promise<void> | void;
+  /** When true, success state persists indefinitely — use for redirect flows */
+  persistentSuccess?: boolean;
 };
 
 type ButtonState = "idle" | "confirming" | "loading" | "success" | "error";
@@ -46,6 +48,7 @@ export function SmartButton({
   disabled = false,
   className = "",
   onClick,
+  persistentSuccess = false,
 }: SmartButtonProps) {
   const [state, setState] = useState<ButtonState>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -81,7 +84,9 @@ export function SmartButton({
     try {
       await onClick();
       setState("success");
-      timerRef.current = setTimeout(reset, 2000);
+      if (!persistentSuccess) {
+        timerRef.current = setTimeout(reset, 2000);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong.";
       setErrorMsg(msg);
@@ -129,7 +134,7 @@ export function SmartButton({
         ) : state === "success" ? (
           <>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 6 9 12l11-11" />
+              <path d="m20 6-11 11-5-5" />
             </svg>
             {displayLabel}
           </>

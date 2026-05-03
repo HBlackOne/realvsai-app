@@ -4,12 +4,14 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useAppMe } from "@/hooks/use-app-me";
+import { useCheckout } from "@/hooks/use-checkout";
 import { OnboardingWizard } from "./OnboardingWizard";
 
 export function WelcomePage() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const { me, loading } = useAppMe();
+  const { openCheckout, loading: checkoutLoading } = useCheckout();
 
   useEffect(() => {
     if (!loading && me?.onboardingComplete) {
@@ -31,6 +33,18 @@ export function WelcomePage() {
 
   const rawFirstName = me?.firstName || user?.firstName || "there";
   const userName = /^[\p{L}][\p{L}\p{M}' -]{0,40}$/u.test(rawFirstName.trim()) ? rawFirstName.trim() : "there";
+
+  const handleStartTrial = async () => {
+    await openCheckout(async () => {
+      const res = await fetch("/api/billing/checkout/trial", { method: "POST" });
+      const payload = await res.json();
+      if (!res.ok || !payload?.success || !payload?.data?.checkoutUrl) {
+        throw new Error(payload?.error || "Unable to start trial checkout.");
+      }
+      await fetch("/api/onboarding/complete", { method: "POST" });
+      return payload.data.checkoutUrl;
+    });
+  };
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-bg px-5 py-12 text-text">
@@ -84,7 +98,11 @@ export function WelcomePage() {
         </div>
 
         <div style={{ animation: "heroFadeUp 560ms 160ms ease-out forwards", opacity: 0 }}>
-          <OnboardingWizard />
+          <OnboardingWizard
+            earlyAccessEligible={me?.earlyAccessEligible ?? false}
+            onStartTrial={handleStartTrial}
+            trialLoading={checkoutLoading}
+          />
         </div>
       </div>
     </div>
