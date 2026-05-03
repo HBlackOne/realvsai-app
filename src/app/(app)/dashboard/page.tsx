@@ -8,8 +8,11 @@ import { Last7DaysCard } from "@/components/dashboard/Last7DaysCard";
 import { QuickScan } from "@/components/dashboard/QuickScan";
 import { RecentScans, type Scan } from "@/components/dashboard/RecentScans";
 import { AppSectionHeader } from "@/components/app-shell/AppPage";
+import { GrowthNudge } from "@/components/dashboard/GrowthNudge";
 import { useAppMe } from "@/hooks/use-app-me";
 import { useDashboardScans } from "@/hooks/use-dashboard-scans";
+import { resolveUserState } from "@/lib/user-state";
+import { getGrowthMessage } from "@/lib/growth-messages";
 
 function toPlanLabel(me: ReturnType<typeof useAppMe>["me"]) {
   if (!me?.subscription) return me?.trial?.balance || me?.trial?.trialEndsAt ? "Free Trial" : "No active plan";
@@ -176,8 +179,16 @@ export default function DashboardPage() {
   const { me } = useAppMe();
   const { recentScans, usage } = useDashboardScans();
 
+  const userState = resolveUserState(me);
+  const spendableCredits =
+    (me?.trial?.balance ?? 0) +
+    (me?.subscription?.subscriptionCreditBalance ?? 0) +
+    (me?.wallet?.balance ?? 0);
+  const growthNudge = getGrowthMessage("low_credits", userState, {
+    creditsLeft: spendableCredits,
+  });
+
   const firstName = me?.firstName || user?.firstName || "there";
-  const spendableCredits = (me?.trial?.balance ?? 0) + (me?.subscription?.subscriptionCreditBalance ?? 0) + (me?.wallet?.balance ?? 0);
   const planLabel = toPlanLabel(me);
 
   const uiScans = useMemo<Scan[]>(() => {
@@ -197,8 +208,17 @@ export default function DashboardPage() {
   const quickScanFooter = useMemo(() => buildQuickScanFooter(me, spendableCredits), [me, spendableCredits]);
   const usageState = useMemo(() => buildUsageState(me, spendableCredits), [me, spendableCredits]);
 
+  const isPaidSubscriber = userState === "ea_pro" || userState === "loyalty_pro" || userState === "normal_pro" || userState === "basic";
+  const showGrowthNudge = growthNudge && !isPaidSubscriber;
+
   return (
     <div className="mx-auto max-w-[1100px] px-4 pb-16 pt-5 md:px-6 md:pt-6 lg:px-8">
+      {showGrowthNudge ? (
+        <div className="mb-4">
+          <GrowthNudge message={growthNudge} />
+        </div>
+      ) : null}
+
       <div className="mb-4 lg:hidden">
         <h1 className="text-xl font-semibold text-text">Welcome back, {firstName}</h1>
         <p className="mt-1 text-sm text-text-dim">⚡ {spendableCredits} credits • {planLabel}</p>

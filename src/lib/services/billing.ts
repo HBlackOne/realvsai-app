@@ -426,6 +426,7 @@ export function serializeSubscription(
     trialVariantId: subscription.trialVariantId,
     subscriptionCreditBalance: subscription.subscriptionCreditBalance,
     subscriptionPlanId: subscription.subscriptionPlanId,
+    pricingPhase: null,
     subscriptionMonthlyCredits: subscription.subscriptionMonthlyCredits,
     subscriptionDeepVideoCount: subscription.subscriptionDeepVideoCount,
     subscriptionPriceCents: subscription.subscriptionPriceCents,

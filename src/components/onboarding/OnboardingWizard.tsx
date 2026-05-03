@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Upload, ShieldCheck, ClipboardCheck, CheckCircle2 } from "lucide-react";
-import CheckoutConfirmModal from "@/components/billing/CheckoutConfirmModal";
-
-const DASHBOARD_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.realvs.ai") + "/dashboard";
+import { SmartButton } from "@/components/ui/SmartButton";
+import { useCheckout } from "@/hooks/use-checkout";
+import { useAppMe } from "@/hooks/use-app-me";
 
 type Step = {
   num: string;
@@ -71,7 +72,11 @@ function StepProgress({ step }: { step: number }) {
         const done = i < step || step === TOTAL;
         const active = i === step;
         return (
-          <div key={s.num} className="flex items-center" style={{ flex: i < STEPS.length - 1 ? "1" : "none" }}>
+          <div
+            key={s.num}
+            className="flex items-center"
+            style={{ flex: i < STEPS.length - 1 ? "1" : "none" }}
+          >
             <div className="flex flex-col items-center gap-[5px]">
               <div
                 className={`flex h-[26px] w-[26px] items-center justify-center rounded-full border-[1.5px] transition-all duration-300 ${
@@ -83,21 +88,46 @@ function StepProgress({ step }: { step: number }) {
                 }`}
               >
                 {done ? (
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--color-bg)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--color-bg)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="m20 6-11 11-5-5" />
                   </svg>
                 ) : (
-                  <span className={`font-mono text-[9.5px] font-semibold ${active ? "text-primary" : "text-text-dim"}`}>{s.num}</span>
+                  <span
+                    className={`font-mono text-[9.5px] font-semibold ${
+                      active ? "text-primary" : "text-text-dim"
+                    }`}
+                  >
+                    {s.num}
+                  </span>
                 )}
               </div>
-              <span className={`whitespace-nowrap text-[10px] transition-colors duration-300 ${active ? "font-semibold text-text" : done ? "text-text-muted" : "text-text-dim"}`}>
+              <span
+                className={`whitespace-nowrap text-[10px] transition-colors duration-300 ${
+                  active
+                    ? "font-semibold text-text"
+                    : done
+                      ? "text-text-muted"
+                      : "text-text-dim"
+                }`}
+              >
                 {s.label}
               </span>
             </div>
             {i < STEPS.length - 1 && (
               <div
                 className="mx-[5px] mb-5 h-[1.5px] flex-1 transition-all duration-400"
-                style={{ background: i < step ? "var(--color-success)" : "var(--color-border)" }}
+                style={{
+                  background: i < step ? "var(--color-success)" : "var(--color-border)",
+                }}
               />
             )}
           </div>
@@ -107,19 +137,33 @@ function StepProgress({ step }: { step: number }) {
   );
 }
 
-function StepCard({ s, step, onBack, onNext }: { s: Step; step: number; onBack: () => void; onNext: () => void }) {
+function StepCard({
+  s,
+  step,
+  onBack,
+  onNext,
+}: {
+  s: Step;
+  step: number;
+  onBack: () => void;
+  onNext: () => void;
+}) {
   const { Icon } = s;
   return (
     <>
       <div className="mb-4 flex items-start gap-3.5">
-        <div className={`flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[13px] ${s.iconBg}`}>
+        <div
+          className={`flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[13px] ${s.iconBg}`}
+        >
           <Icon className={`h-[18px] w-[18px] ${s.iconColor}`} />
         </div>
         <div>
           <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-dim">
             Step {s.num} of {TOTAL}
           </p>
-          <h3 className="text-[16px] font-bold leading-[1.3] tracking-[-0.025em] text-text">{s.title}</h3>
+          <h3 className="text-[16px] font-bold leading-[1.3] tracking-[-0.025em] text-text">
+            {s.title}
+          </h3>
         </div>
       </div>
 
@@ -139,7 +183,9 @@ function StepCard({ s, step, onBack, onNext }: { s: Step; step: number; onBack: 
           onClick={onBack}
           disabled={step === 0}
           className={`flex cursor-pointer items-center gap-[5px] border-none bg-transparent py-[5px] text-[12.5px] font-medium transition-colors duration-150 ${
-            step === 0 ? "cursor-default text-border" : "text-text-muted hover:text-text"
+            step === 0
+              ? "cursor-default text-border"
+              : "text-text-muted hover:text-text"
           }`}
         >
           <ArrowLeft className="h-[13px] w-[13px]" />
@@ -162,16 +208,14 @@ function FinalCard({
   onBack,
   onMaybeLater,
   onStartTrial,
-  isPending,
-  isStartingTrial,
-  error,
+  trialLoading,
+  earlyAccessEligible,
 }: {
   onBack: () => void;
-  onMaybeLater: () => void;
-  onStartTrial: () => void;
-  isPending: boolean;
-  isStartingTrial: boolean;
-  error: string | null;
+  onMaybeLater: () => Promise<void>;
+  onStartTrial: () => Promise<void>;
+  trialLoading: boolean;
+  earlyAccessEligible: boolean;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center py-2 text-center">
@@ -183,30 +227,48 @@ function FinalCard({
         You&apos;re ready to start.
       </h3>
       <p className="mb-[22px] max-w-[280px] text-[13px] leading-[1.7] text-text-muted">
-        Unlock your scans now. A card is required to activate your trial, and you can cancel anytime before renewal.
+        Unlock your scans now. A card is required to activate your trial, and you can
+        cancel anytime before renewal.
       </p>
 
-      <div className="flex w-full max-w-[260px] flex-col gap-[9px]">
-        <button
-          onClick={onStartTrial}
-          disabled={isStartingTrial || isPending}
-          className="inline-flex items-center justify-center gap-[7px] rounded-[12px] bg-primary py-[11px] text-[14px] font-bold text-bg transition-colors duration-150 hover:bg-primary-hover disabled:opacity-60"
-        >
-          <ArrowRight className="h-[14px] w-[14px]" />
-          {isStartingTrial ? "Redirecting…" : "Start Free Trial"}
-        </button>
+      {earlyAccessEligible ? (
+        <div className="mb-[14px] inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary-dim px-3 py-1.5 text-[11.5px] font-medium text-primary">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+          Early Access Rate — $9.99/mo after trial
+        </div>
+      ) : (
+        <div className="mb-[14px] inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11.5px] text-text-muted">
+          Standard Rate — $14.99/mo after trial
+        </div>
+      )}
 
-        <button
+      <div className="flex w-full max-w-[260px] flex-col gap-[9px]">
+        <SmartButton
+          label="Start Free Trial"
+          loadingLabel="Preparing checkout..."
+          successLabel="Opening checkout..."
+          variant="primary"
+          onClick={onStartTrial}
+        />
+
+        <SmartButton
+          label="Maybe Later"
+          loadingLabel="Just a moment..."
+          variant="ghost"
           onClick={onMaybeLater}
-          disabled={isPending || isStartingTrial}
-          className="inline-flex cursor-pointer items-center justify-center rounded-[12px] border border-border bg-transparent py-[10px] text-[13.5px] text-text-muted transition-all duration-150 hover:bg-surface-hover hover:text-text disabled:opacity-50"
-        >
-          {isPending ? "Redirecting…" : "Maybe Later"}
-        </button>
+        />
       </div>
 
-      <p className="mt-3.5 text-[11px] text-text-dim">Card required to activate · Cancel anytime before renewal</p>
-      {error ? <p className="mt-3 text-[11px] text-danger">{error}</p> : null}
+      <p className="mt-3.5 text-[11px] text-text-dim">
+        Card required to activate · Cancel anytime before renewal
+      </p>
 
       <button
         onClick={onBack}
@@ -219,18 +281,12 @@ function FinalCard({
 }
 
 export function OnboardingWizard() {
+  const router = useRouter();
+  const { me } = useAppMe();
+  const { openCheckout, loading: checkoutLoading } = useCheckout();
+
   const [step, setStep] = useState(0);
   const [animKey, setAnimKey] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [isStartingTrial, setIsStartingTrial] = useState(false);
-  const [isPending, setIsPending] = useState(false);
-  const [showTrialConfirm, setShowTrialConfirm] = useState(false);
-
-  const goTo = (n: number) => {
-    setStep(n);
-    setAnimKey((k) => k + 1);
-    setError(null);
-  };
 
   const markOnboardingComplete = async () => {
     const response = await fetch("/api/onboarding/complete", { method: "POST" });
@@ -240,46 +296,26 @@ export function OnboardingWizard() {
     }
   };
 
-  const handleStartTrial = async () => {
-    if (isStartingTrial || isPending) return;
-    setShowTrialConfirm(true);
+  const goTo = (n: number) => {
+    setStep(n);
+    setAnimKey((k) => k + 1);
   };
 
-  const confirmStartTrial = async () => {
-    setShowTrialConfirm(false);
-    setIsStartingTrial(true);
-    setError(null);
-
-    try {
-      await markOnboardingComplete();
-
+  const handleStartTrial = async () => {
+    await markOnboardingComplete();
+    await openCheckout(async () => {
       const res = await fetch("/api/billing/checkout/trial", { method: "POST" });
       const payload = await res.json();
-
       if (!res.ok || !payload?.success || !payload?.data?.checkoutUrl) {
         throw new Error(payload?.error || "Unable to start trial checkout.");
       }
-
-      window.location.href = payload.data.checkoutUrl;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to start trial checkout.");
-      setIsStartingTrial(false);
-    }
+      return payload.data.checkoutUrl;
+    });
   };
 
   const handleMaybeLater = async () => {
-    if (isPending || isStartingTrial) return;
-
-    setIsPending(true);
-    setError(null);
-
-    try {
-      await markOnboardingComplete();
-      window.location.href = DASHBOARD_URL;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to continue.");
-      setIsPending(false);
-    }
+    await markOnboardingComplete();
+    router.push("/dashboard");
   };
 
   const cur = step < TOTAL ? STEPS[step] : null;
@@ -290,35 +326,25 @@ export function OnboardingWizard() {
 
       <div
         key={animKey}
-        className="animate-[fadeSlideIn_220ms_ease] flex min-h-[260px] flex-col rounded-[20px] border border-border bg-surface p-[26px]"
+        className="flex min-h-[260px] flex-col rounded-[20px] border border-border bg-surface p-[26px] animate-[fadeSlideIn_220ms_ease]"
       >
         {cur ? (
-          <StepCard s={cur} step={step} onBack={() => goTo(step - 1)} onNext={() => goTo(step + 1)} />
+          <StepCard
+            s={cur}
+            step={step}
+            onBack={() => goTo(step - 1)}
+            onNext={() => goTo(step + 1)}
+          />
         ) : (
           <FinalCard
             onBack={() => goTo(step - 1)}
             onMaybeLater={handleMaybeLater}
             onStartTrial={handleStartTrial}
-            isPending={isPending}
-            isStartingTrial={isStartingTrial}
-            error={error}
+            trialLoading={checkoutLoading}
+            earlyAccessEligible={me?.earlyAccessEligible ?? false}
           />
         )}
       </div>
-
-      {showTrialConfirm ? (
-        <CheckoutConfirmModal
-          title="Start free trial?"
-          description="Your free trial checkout will open next."
-          confirmLabel="Start free trial"
-          loading={isStartingTrial}
-          onClose={() => {
-            if (isStartingTrial) return;
-            setShowTrialConfirm(false);
-          }}
-          onConfirm={() => void confirmStartTrial()}
-        />
-      ) : null}
     </div>
   );
 }

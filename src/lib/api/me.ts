@@ -50,6 +50,7 @@ export type AppMeData = {
     trialVariantId: string | null;
     subscriptionCreditBalance: number;
     subscriptionPlanId: string | null;
+    pricingPhase: string | null;
     subscriptionMonthlyCredits: number;
     subscriptionDeepVideoCount: number;
     subscriptionPriceCents: number | null;

@@ -137,11 +137,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <DashboardHeader
-          title="RealvsAI"
-          subtitle="AI Authenticity scanner"
-          user={shellUser}
           onHamburger={() => setDrawerOpen(true)}
-          upgradeLabel={upgradeAction.label}
           onUpgrade={() => router.push(upgradeAction.route)}
         />
 
