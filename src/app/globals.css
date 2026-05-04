@@ -94,6 +94,33 @@ body {
   }
 }
 
+@keyframes shake {
+  0% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-6px);
+  }
+  30% {
+    transform: translateX(6px);
+  }
+  45% {
+    transform: translateX(-4px);
+  }
+  60% {
+    transform: translateX(4px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+  90% {
+    transform: translateX(2px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -191,6 +218,15 @@ body {
 
 .safe-bottom {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+.btn-primary:active,
+button:active,
+a[role="button"]:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 32px var(--primary-glow);
+  opacity: 0.85;
+  transition: transform 80ms ease, box-shadow 80ms ease, opacity 80ms ease;
 }
 
 .animate-pack-slide-right {

@@ -184,22 +184,8 @@ export async function applyCreditsPurchaseFromOrder(
   // First payment: mark user as paid (idempotent — safe for webhook retries)
   await markUserAsPaid(userId);
 
-  // Check if user had ANY prior completed Lemon top-up purchases
-  // (before we created the transaction record for this order)
-  const priorPurchase = await db.transaction.findFirst({
-    where: {
-      userId,
-      provider: "lemonsqueezy",
-      type: TransactionType.PURCHASE,
-      status: TransactionStatus.COMPLETED,
-    },
-  });
-  const wasAlreadyPaid = !!priorPurchase;
-
-  // Paid users get +10% bonus on future top-ups
-  const bonusMultiplier = wasAlreadyPaid ? 1.1 : 1.0;
-  const finalWalletCents = Math.floor(walletValueCents * bonusMultiplier);
-  const bonusCents = finalWalletCents - walletValueCents;
+  const finalWalletCents = walletValueCents;
+  const bonusCents = 0;
 
   const wallet = await ensureUserWallet(userId);
   const nextBalance = wallet.balance + finalWalletCents;
@@ -215,9 +201,7 @@ export async function applyCreditsPurchaseFromOrder(
         currency: attributes.currency || BILLING_CURRENCY,
         credits: finalWalletCents,
         balanceAfter: nextBalance,
-        description: wasAlreadyPaid
-          ? `${walletValueCents} wallet top-up + ${bonusCents} paid-user bonus`
-          : `${walletValueCents} wallet top-up purchase`,
+        description: `${walletValueCents} credit top-up`,
         provider: "lemonsqueezy",
         providerOrderId: orderId,
         providerOrderNumber: attributes.order_number
@@ -268,7 +252,7 @@ export async function applyCreditsPurchaseFromOrder(
     userId,
     orderId,
     credits: finalWalletCents,
-    bonusCents: wasAlreadyPaid ? bonusCents : 0,
+    bonusCents,
     nextBalance,
   };
 }

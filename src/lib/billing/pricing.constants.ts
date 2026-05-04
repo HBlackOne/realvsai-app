@@ -1,3 +1,5 @@
+import { CREDIT_PACKS } from "@/lib/billing/credit-packs";
+
 export const BILLING_CURRENCY = "USD" as const;
 export const PAYMENT_FEE_BPS = 800;
 
@@ -250,7 +252,7 @@ export const EARLY_ACCESS_PLANS = {
     name: "Pro",
     monthlyCredits: SUBSCRIPTION_PHASES.proEarlyAccess.monthlyCredits,
     earlyAccessPriceCents: SUBSCRIPTION_PHASES.proEarlyAccess.priceCents,
-    currentPriceCents: SUBSCRIPTION_PHASES.proNormal.priceCents,
+    currentPriceCents: SUBSCRIPTION_PHASES.proEarlyAccess.priceCents,
     imageCost: ACTIVE_PRICING.scanPrices.image,
     audioCost: ACTIVE_PRICING.scanPrices.audio,
     videoShortCost: ACTIVE_PRICING.scanPrices.videoShort,
@@ -262,44 +264,19 @@ export const EARLY_ACCESS_PLANS = {
 
 export type EarlyAccessPlanId = keyof typeof EARLY_ACCESS_PLANS;
 
-export const WALLET_TOPUPS = {
-  nano: {
-    ...ACTIVE_PRICING.walletTopups.nano,
-    bonusCents:
-      ACTIVE_PRICING.walletTopups.nano.walletValueCents -
-      ACTIVE_PRICING.walletTopups.nano.priceCents,
-  },
-  starter: {
-    ...ACTIVE_PRICING.walletTopups.starter,
-    bonusCents:
-      ACTIVE_PRICING.walletTopups.starter.walletValueCents -
-      ACTIVE_PRICING.walletTopups.starter.priceCents,
-  },
-  basic: {
-    ...ACTIVE_PRICING.walletTopups.basic,
-    bonusCents:
-      ACTIVE_PRICING.walletTopups.basic.walletValueCents -
-      ACTIVE_PRICING.walletTopups.basic.priceCents,
-  },
-  standard: {
-    ...ACTIVE_PRICING.walletTopups.standard,
-    bonusCents:
-      ACTIVE_PRICING.walletTopups.standard.walletValueCents -
-      ACTIVE_PRICING.walletTopups.standard.priceCents,
-  },
-  pro: {
-    ...ACTIVE_PRICING.walletTopups.pro,
-    bonusCents:
-      ACTIVE_PRICING.walletTopups.pro.walletValueCents -
-      ACTIVE_PRICING.walletTopups.pro.priceCents,
-  },
-  elite: {
-    ...ACTIVE_PRICING.walletTopups.elite,
-    bonusCents:
-      ACTIVE_PRICING.walletTopups.elite.walletValueCents -
-      ACTIVE_PRICING.walletTopups.elite.priceCents,
-  },
-} as const;
+export const WALLET_TOPUPS = Object.fromEntries(
+  CREDIT_PACKS.map((pack) => [
+    pack.id,
+    {
+      ...pack,
+      bonusCents: pack.walletValueCents - pack.priceCents,
+    },
+  ]),
+) as {
+  readonly [Pack in (typeof CREDIT_PACKS)[number] as Pack["id"]]: Pack & {
+    readonly bonusCents: number;
+  };
+};
 
 export const WALLET_TOPUP_LIST = Object.values(WALLET_TOPUPS);
 export type WalletTopupId = keyof typeof WALLET_TOPUPS;
@@ -310,6 +287,13 @@ export const SCAN_PRICES = {
   video15: ACTIVE_PRICING.scanPrices.videoShort,
   video30: ACTIVE_PRICING.scanPrices.videoShort,
   video60: ACTIVE_PRICING.scanPrices.deepVideo,
+} as const;
+
+export const FREE_SCAN_PRICES = {
+  image: 5,
+  audio: 80,
+  video15: 60,
+  video60: 0,
 } as const;
 
 export const PROTECTION_LIMITS = {

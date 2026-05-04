@@ -4,17 +4,20 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAppMe } from "@/hooks/use-app-me";
 import { useCheckout } from "@/hooks/use-checkout";
-import { EARLY_ACCESS_PLANS, SCAN_PRICES, WALLET_TOPUP_LIST } from "@/lib/billing/pricing.constants";
+import { CREDIT_PACKS } from "@/lib/billing/credit-packs";
+import { PLANS } from "@/lib/billing/plans";
+import { FREE_SCAN_PRICES, SCAN_PRICES } from "@/lib/billing/pricing.constants";
 import { resolveUserState } from "@/lib/user-state";
 import { AppSectionHeader } from "@/components/app-shell/AppPage";
+import { SmartButton } from "@/components/ui/SmartButton";
 
-type PlanKey = "basic" | "pro";
 
 type PaymentItem = {
   id: string;
   createdAt: string;
   amount: number;
   currency: string | null;
+  credits: number | null;
   status: "COMPLETED" | "FAILED" | string;
 };
 
@@ -54,17 +57,17 @@ function AnimatedNumber({ value }: { value: number }) {
   return <>{display.toLocaleString()}</>;
 }
 
-function WalletTopup({ onCheckout, isStarting, error }: { onCheckout: (packId: string) => void; isStarting: boolean; error: string | null }) {
-  const defaultIndex = Math.max(0, WALLET_TOPUP_LIST.findIndex((pack) => pack.id === "standard"));
+function WalletTopup({ onCheckout, isStarting, error }: { onCheckout: (packId: string) => Promise<void> | void; isStarting: boolean; error: string | null }) {
+  const defaultIndex = Math.max(0, CREDIT_PACKS.findIndex((pack) => pack.id === "standard"));
   const [selectedIndex, setSelectedIndex] = useState(defaultIndex);
-  const pack = WALLET_TOPUP_LIST[selectedIndex] ?? WALLET_TOPUP_LIST[0];
+  const pack = CREDIT_PACKS[selectedIndex] ?? CREDIT_PACKS[0];
 
-  // bonus = paid price - credits received (extra free credits)
-  const bonusCents = Math.max(0, pack.priceCents - pack.walletValueCents);
-  // bar fill = price position on $5-$50 scale
-  const pricePercent = Math.round((pack.priceCents / 5000) * 100);
-  // green bonus segment = fixed 20% width when bonus > 0
-  const bonusPercent = bonusCents > 0 ? 20 : 0;
+  const positionRatio = selectedIndex / (CREDIT_PACKS.length - 1);
+  const positionPercent = Math.round(positionRatio * 100);
+  const bluePercent = positionPercent * 0.8;
+  const greenPercent = positionPercent * 0.2;
+  const baseCreditsPerDollar = CREDIT_PACKS[0].walletValueCents / (CREDIT_PACKS[0].priceCents / 100);
+  const bonusCredits = selectedIndex === 0 ? 0 : pack.walletValueCents - Math.floor((pack.priceCents / 100) * baseCreditsPerDollar);
 
   const imageScans = Math.floor(pack.walletValueCents / SCAN_PRICES.image);
   const audioScans = Math.floor(pack.walletValueCents / SCAN_PRICES.audio);
@@ -83,39 +86,32 @@ function WalletTopup({ onCheckout, isStarting, error }: { onCheckout: (packId: s
             <span className="text-[14px] font-medium text-text-muted">credits</span>
           </div>
 
-          <div className="mt-3">
+          <div className="mt-3 px-2">
             <div className="relative h-2 rounded-full bg-surface3">
               <div
                 className="absolute inset-y-0 left-0 rounded-l-full bg-primary/80 transition-[width] duration-300"
-                style={{ width: `${pricePercent}%` }}
+                style={{ width: `${bluePercent}%` }}
               />
-              {bonusPercent > 0 && (
+              {selectedIndex === 0 ? (
+                <div className="absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-primary" />
+              ) : (
                 <div
                   className="absolute inset-y-0 rounded-r-full bg-success transition-[left,width] duration-300"
-                  style={{ left: `${pricePercent}%`, width: `${bonusPercent}%` }}
+                  style={{ left: `${bluePercent}%`, width: `${greenPercent}%` }}
                 />
               )}
             </div>
 
+
             <div className="relative mt-2">
-              <input
-                type="range"
-                min={0}
-                max={WALLET_TOPUP_LIST.length - 1}
-                step={1}
-                value={selectedIndex}
-                onChange={(e) => setSelectedIndex(Number(e.target.value))}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                aria-label="Wallet top-up pack"
-              />
               <div className="flex justify-between">
-                {WALLET_TOPUP_LIST.map((item) => {
+                {CREDIT_PACKS.map((item) => {
                   const active = item.id === pack.id;
                   return (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setSelectedIndex(WALLET_TOPUP_LIST.findIndex((p) => p.id === item.id))}
+                      onClick={() => setSelectedIndex(CREDIT_PACKS.findIndex((p) => p.id === item.id))}
                       className={`flex flex-col items-center gap-1 transition ${active ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
                       aria-label={`Select ${item.label} top-up`}
                     >
@@ -126,12 +122,13 @@ function WalletTopup({ onCheckout, isStarting, error }: { onCheckout: (packId: s
                 })}
               </div>
             </div>
+
           </div>
 
-          {bonusCents > 0 && (
+          {bonusCredits > 0 && (
             <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-success/25 bg-success-dim px-2.5 py-1 text-[11px] font-bold text-success">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              +{bonusCents.toLocaleString()} bonus credits
+              +{bonusCredits.toLocaleString()} bonus credits
             </div>
           )}
         </div>
@@ -146,10 +143,28 @@ function WalletTopup({ onCheckout, isStarting, error }: { onCheckout: (packId: s
           </div>
         </div>
 
-        <div className="mt-2 flex justify-between font-mono text-[10px] text-text-dim">
-          <span>{fmt(WALLET_TOPUP_LIST[0].priceCents)}</span>
-          <span>{fmt(WALLET_TOPUP_LIST[WALLET_TOPUP_LIST.length - 1].priceCents)}</span>
+        <div className="relative mt-4 h-5 w-full px-2">
+          <div className="absolute inset-x-2 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-border" />
+          <div
+            className="absolute left-2 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-primary transition-[width] duration-300"
+            style={{ width: `calc((100% - 16px) * ${positionRatio})` }}
+          />
+          <div
+            className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_var(--primary-glow)]"
+            style={{ left: `calc(8px + (100% - 16px) * ${positionRatio})` }}
+          />
+          <input
+            type="range"
+            min={0}
+            max={CREDIT_PACKS.length - 1}
+            step={1}
+            value={selectedIndex}
+            onChange={(e) => setSelectedIndex(Number(e.target.value))}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label="Wallet top-up pack"
+          />
         </div>
+
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="rounded-[12px] border border-border-subtle bg-surface2 px-2 py-2 text-center">
@@ -170,15 +185,18 @@ function WalletTopup({ onCheckout, isStarting, error }: { onCheckout: (packId: s
           </div>
         </div>
 
-        {error ? <p className="mt-4 text-[12px] text-danger">{error}</p> : null}
-
-        <button
+        <SmartButton
+          label={`Add ${pack.walletValueCents.toLocaleString()} credits — ${fmt(pack.priceCents)}`}
+          loadingLabel="Preparing checkout..."
+          successLabel="Payment successful"
+          errorLabel="Something went wrong · Tap to retry"
+          successEventName="ls:checkout:success"
+          resetEventName="ls:checkout:closed"
+          error={error}
+          loading={isStarting}
           onClick={() => onCheckout(pack.id)}
-          disabled={isStarting}
-          className="mt-4 w-full rounded-[13px] bg-primary px-4 py-3 text-[13.5px] font-extrabold text-bg shadow-[0_0_28px_var(--primary-glow)] transition hover:bg-primary-hover disabled:opacity-70"
-        >
-          {isStarting ? "Redirecting to checkout…" : `Add ${pack.walletValueCents.toLocaleString()} credits — ${fmt(pack.priceCents)}`}
-        </button>
+          className="mt-3 w-full rounded-[13px] px-4 py-2.5 text-[13px] font-bold shadow-[0_0_28px_var(--primary-glow)] hover:bg-primary-hover disabled:opacity-70"
+        />
         <p className="mt-2 text-center text-[11px] text-text-dim">One-time · no expiry · no subscription</p>
       </div>
     </div>
@@ -193,7 +211,7 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
   renewsAt: string | null;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const activePlan = activePlanId && EARLY_ACCESS_PLANS[activePlanId as PlanKey] ? EARLY_ACCESS_PLANS[activePlanId as PlanKey] : null;
+  const activePlan = activePlanId === "basic" ? PLANS.basic : activePlanId === "pro" ? PLANS.pro_ea : null;
   const renewsText = renewsAt ? new Date(renewsAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : null;
 
   if (hasActiveSubscription) {
@@ -242,8 +260,8 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
     );
   }
 
-  const basicPlan = EARLY_ACCESS_PLANS.basic;
-  const proPlan = EARLY_ACCESS_PLANS.pro;
+  const basicPlan = PLANS.basic;
+  const proPlan = PLANS.pro_ea;
 
   return (
     <div className="overflow-hidden rounded-[18px] border border-border bg-surface">
@@ -266,12 +284,6 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
       <div className="grid transition-[grid-template-rows] duration-500 ease-out" style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}>
         <div className="min-h-0 overflow-hidden">
           <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-            <div className="mb-4 flex justify-end">
-              <Link href="/subscription" className="hidden rounded-full border border-border-subtle bg-surface2 px-3 py-1.5 text-[11px] font-semibold text-text-muted transition hover:bg-surface-hover hover:text-text sm:inline-flex">
-                View Plans →
-              </Link>
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               {/* Basic card */}
               <div className="flex flex-col overflow-hidden rounded-[16px] border border-border-subtle bg-surface2 p-3.5 sm:p-4">
@@ -282,7 +294,7 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
                   <div className="flex items-end justify-between gap-2">
                     <div>
                       <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-text-dim">Monthly</div>
-                      <div className="mt-1 font-mono text-[20px] font-extrabold tracking-[-0.05em] text-text">{fmt(basicPlan.currentPriceCents)}</div>
+                      <div className="mt-1 font-mono text-[20px] font-extrabold tracking-[-0.05em] text-text">{fmt(basicPlan.priceCents)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-text-dim">Included</div>
@@ -302,9 +314,6 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
                     </div>
                   ))}
                 </div>
-                <Link href="/subscription" className="mt-3 w-full rounded-[12px] border border-primary/30 bg-primary-dim px-3 py-2.5 text-center text-[12px] font-bold text-primary hover:border-primary/45">
-                  View Plans →
-                </Link>
               </div>
 
               {/* Pro EA card */}
@@ -322,7 +331,7 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
                   <div className="flex items-end justify-between gap-2">
                     <div>
                       <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-text-dim">Monthly</div>
-                      <div className="mt-1 font-mono text-[20px] font-extrabold tracking-[-0.05em] text-text">{fmt(proPlan.currentPriceCents)}</div>
+                      <div className="mt-1 font-mono text-[20px] font-extrabold tracking-[-0.05em] text-text">{fmt(proPlan.priceCents)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-text-dim">Included</div>
@@ -337,21 +346,18 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-text-muted">
                     <span className="h-1.5 w-1.5 rounded-full bg-warning" />
-                    <span>Deep video: {proPlan.deepVideoCost} cr / 15 per month</span>
+                    <span>Deep video: {proPlan.deepVideoCost} cr / {proPlan.deepVideoMonthly} per month</span>
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-text-muted">
                     <span className="h-1.5 w-1.5 rounded-full bg-warning" />
-                    <span>More premium features coming soon</span>
+                    <span>Premium features unlocked</span>
                   </div>
                 </div>
-                <Link href="/subscription" className="relative mt-3 w-full rounded-[12px] bg-primary px-3 py-2.5 text-center text-[12px] font-bold text-bg shadow-[0_0_28px_var(--primary-glow)] hover:bg-primary-hover">
-                  View Plans →
-                </Link>
               </div>
             </div>
 
-            <Link href="/subscription" className="mt-3 inline-flex w-full items-center justify-center rounded-[12px] border border-border bg-surface2 px-4 py-2.5 text-[12px] font-semibold text-text-muted transition hover:bg-surface-hover hover:text-text sm:hidden">
-              View Plans →
+            <Link href="/subscription" className="mt-3 inline-flex w-full items-center justify-center rounded-[12px] border border-border bg-surface2 px-4 py-2.5 text-[12px] font-semibold text-text-muted transition hover:bg-surface-hover hover:text-text">
+              Compare all plans →
             </Link>
           </div>
         </div>
@@ -361,38 +367,61 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
 }
 
 function PaymentHistory({ history }: { history: PaymentItem[] }) {
+  const [visibleCount, setVisibleCount] = useState(5);
+  const visibleHistory = history.slice(0, visibleCount);
+  const hasMore = visibleCount < history.length;
+
   return (
     <div className="rounded-[18px] border border-border bg-surface p-5">
-      <div className="mb-3 hidden grid-cols-[1.4fr_1fr_0.7fr] gap-3 border-b border-border pb-3 sm:grid">
-        {["Date (UTC)", "Amount", "Status"].map((h) => (
-          <div key={h} className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-dim">{h}</div>
-        ))}
-      </div>
       {history.length === 0 ? (
         <div className="py-8 text-center text-[13px] text-text-dim">No payment history yet.</div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {history.map((h) => {
-            const dateText = new Intl.DateTimeFormat("en-GB", {
-              year: "numeric", month: "2-digit", day: "2-digit",
-              hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
-            }).format(new Date(h.createdAt));
-            const amountText = new Intl.NumberFormat("en-US", { style: "currency", currency: h.currency || "USD" }).format(h.amount / 100);
-            const success = h.status === "COMPLETED";
-            const fail = h.status === "FAILED";
-            const label = success ? "Success" : fail ? "Failure" : h.status;
-            return (
-              <div key={h.id} className="grid gap-2 rounded-[12px] border border-border-subtle bg-surface2 px-4 py-3 sm:grid-cols-[1.4fr_1fr_0.7fr] sm:items-center">
-                <div className="font-mono text-[12.5px] text-text-muted">{dateText}</div>
-                <div className="font-mono text-[13px] font-bold text-text">{amountText}</div>
-                <div className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${success ? "border-success/30 bg-success-dim text-success" : fail ? "border-danger/30 bg-danger-dim text-danger" : "border-border bg-surface3 text-text-muted"}`}>
-                  <div className={`h-1.5 w-1.5 rounded-full ${success ? "bg-success" : fail ? "bg-danger" : "bg-text-dim"}`} />
-                  {label}
+        <>
+          <div className="flex flex-col gap-2">
+            {visibleHistory.map((h) => {
+              const dateText = new Intl.DateTimeFormat("en-GB", {
+                year: "numeric", month: "short", day: "2-digit",
+                hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
+              }).format(new Date(h.createdAt));
+              const amountText = new Intl.NumberFormat("en-US", { style: "currency", currency: h.currency || "USD" }).format(h.amount / 100);
+              const creditsText = h.credits ? `+${h.credits.toLocaleString()} credits` : "Credits added";
+              const success = h.status === "COMPLETED";
+              const fail = h.status === "FAILED";
+              const label = success ? "Success" : fail ? "Failure" : h.status;
+
+              return (
+                <div key={h.id} className="flex items-center justify-between gap-4 rounded-[12px] bg-surface2 px-4 py-3">
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="truncate text-[13px] font-semibold text-text">{creditsText}</span>
+                    <span className="text-[11px] text-text-dim">{dateText}</span>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-[13px] font-semibold text-text">{amountText}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${success ? "bg-success/15 text-success" : fail ? "bg-danger/15 text-danger" : "bg-surface3 text-text-muted"}`}>
+                      {label}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          {hasMore && (
+            <div className="flex justify-center pt-3">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((count) => Math.min(count + 5, history.length))}
+                className="inline-flex items-center gap-[7px] rounded-[10px] border border-border bg-surface2 px-5 py-2 text-[12.5px] font-medium text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 9l-7 7-7-7" />
+                </svg>
+                Load more
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -400,7 +429,7 @@ function PaymentHistory({ history }: { history: PaymentItem[] }) {
 
 export default function CreditsPage() {
   const { me } = useAppMe();
-  const { openCheckout } = useCheckout();
+  const { openCheckout, loading, error } = useCheckout();
 
   const trialBal = me?.trial?.balance ?? 0;
   const trialEndsAt = me?.trial?.trialEndsAt ?? me?.subscription?.trialEndsAt ?? null;
@@ -418,12 +447,10 @@ export default function CreditsPage() {
   const userState = resolveUserState(me);
 
   const isSubscriber = hasActiveSubscription || trialActive;
-  const imageRate = isSubscriber
-    ? (subPlanId && EARLY_ACCESS_PLANS[subPlanId as PlanKey] ? EARLY_ACCESS_PLANS[subPlanId as PlanKey].imageCost : SCAN_PRICES.image)
-    : SCAN_PRICES.image;
+  const imageRate = userState === "free" || userState === "wallet_only" ? FREE_SCAN_PRICES.image : SCAN_PRICES.image;
 
   function handleCheckout(packId: string) {
-    void openCheckout(async () => {
+    return openCheckout(async () => {
       const res = await fetch("/api/billing/checkout/credits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -458,7 +485,7 @@ export default function CreditsPage() {
           <p className="mt-2 text-[12px] text-text-muted">
             {isSubscriber
               ? <>Image scans cost {imageRate} cr on your plan.</>
-              : <>Image scans cost {SCAN_PRICES.image} cr · <Link href="/subscription" className="text-primary hover:underline">Subscribe for lower rates →</Link></>
+              : <>Image scans cost {FREE_SCAN_PRICES.image} cr · <Link href="/subscription" className="text-primary hover:underline">Subscribe for lower rates →</Link></>
             }
           </p>
         </div>
@@ -467,7 +494,7 @@ export default function CreditsPage() {
       {/* Wallet topup */}
       <div>
         <SectionLabel icon="M13 2L3 14h9l-1 8 10-12h-9l1-8z" label="Wallet topup" />
-        <WalletTopup onCheckout={handleCheckout} isStarting={false} error={null} />
+        <WalletTopup onCheckout={handleCheckout} isStarting={loading} error={error} />
       </div>
 
       {/* Pay history */}

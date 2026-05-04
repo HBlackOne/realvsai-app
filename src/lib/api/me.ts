@@ -113,7 +113,10 @@ export type MeResponse = {
 
 export async function fetchMe(): Promise<MeResponse> {
   try {
-    const response = await fetch("/api/me", { cache: "no-store" });
+    const response = await fetch("/api/me", {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+    });
     const contentType = response.headers.get("content-type") || "";
 
     if (!contentType.includes("application/json")) {

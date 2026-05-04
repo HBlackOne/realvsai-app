@@ -13,20 +13,26 @@ import BillingSuccessStatus from "@/components/billing/BillingSuccessStatus";
 import { db } from "@/lib/db";
 
 const DASHBOARD_HREF = "/dashboard";
+const SUCCESS_TOKEN_REPLAY_WINDOW_MS = 15 * 60 * 1000;
 
 async function validateToken(token: string | undefined) {
   if (!token) return null;
 
   try {
     const record = await db.checkoutToken.findUnique({ where: { token } });
+    const now = new Date();
 
     if (!record) return null;
-    if (record.usedAt) return null;
-    if (record.expiresAt < new Date()) return null;
+    if (record.expiresAt < now) return null;
+
+    if (record.usedAt) {
+      const usedRecently = now.getTime() - record.usedAt.getTime() < SUCCESS_TOKEN_REPLAY_WINDOW_MS;
+      return usedRecently ? record : null;
+    }
 
     await db.checkoutToken.update({
       where: { id: record.id },
-      data: { usedAt: new Date() },
+      data: { usedAt: now },
     });
 
     return record;
