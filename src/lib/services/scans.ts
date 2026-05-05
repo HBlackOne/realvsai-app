@@ -44,7 +44,8 @@ export type TrialBlockReason =
   | "trial_video_limit_reached"
   | "trial_audio_limit_reached"
   | "trial_balance_insufficient"
-  | "subscription_deep_video_limit_reached";
+  | "subscription_deep_video_limit_reached"
+  | "monthly_audio_limit_reached";
 
 function getTodayStart() {
   const now = new Date();
@@ -85,7 +86,7 @@ function resolveDeepVideoMonthlyLimit({
   }
 
   if (subscriptionPlanId === "pro") {
-    if (pricingPhase === PricingPhase.SAFETY) return 25;
+    if (pricingPhase === PricingPhase.SAFETY) return 15;
     if (pricingPhase === PricingPhase.TRANSITION) return 15;
     if (pricingPhase === PricingPhase.GROWTH) return 15;
     return 15;
@@ -136,6 +137,11 @@ function addOneMonth(date: Date) {
   const next = new Date(date);
   next.setMonth(next.getMonth() + 1);
   return next;
+}
+
+function getThisMonthStart(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
 export async function checkHiveCostAlerts({
@@ -520,7 +526,25 @@ export async function validateTrialScan({
       const plan = EARLY_ACCESS_PLANS[planId];
       let effectiveCost = costCredits;
       if (mediaType === "image") effectiveCost = plan.imageCost;
-      if (mediaType === "audio") effectiveCost = plan.audioCost;
+      if (mediaType === "audio") {
+        const audioScansThisMonth = await db.scan.count({
+          where: {
+            userId,
+            mediaType: ScanMediaType.AUDIO,
+            status: { notIn: [ScanStatus.FAILED, ScanStatus.CANCELED] },
+            createdAt: { gte: getThisMonthStart() },
+          },
+        });
+
+        if (audioScansThisMonth >= PROTECTION_LIMITS.maxAudioScansPerMonth) {
+          return {
+            allowed: false,
+            reason: "monthly_audio_limit_reached",
+          };
+        }
+
+        effectiveCost = plan.audioCost;
+      }
       if (mediaType === "video") effectiveCost = plan.videoShortCost;
       return { allowed: true, effectiveCost };
     }

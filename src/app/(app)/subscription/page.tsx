@@ -4,13 +4,17 @@ import { Fragment, useState } from "react";
 import Link from "next/link";
 import {
   EARLY_ACCESS_PLANS,
+  FREE_SCAN_PRICES,
   SCAN_PRICES,
   type EarlyAccessPlanId,
 } from "@/lib/billing/pricing.constants";
+import { PLANS } from "@/lib/billing/plans";
 import { TRIAL_INTERNAL_VALUE_CENTS } from "@/lib/billing/trial.constants";
 import ArcMeter from "@/components/billing/ArcMeter";
-import CheckoutConfirmModal from "@/components/billing/CheckoutConfirmModal";
+import { SmartButton } from "@/components/ui/SmartButton";
 import { useAppMe } from "@/hooks/use-app-me";
+import { useCheckout } from "@/hooks/use-checkout";
+import { resolveUserState, type UserStateKind } from "@/lib/user-state";
 import {
   AppPage,
   AppPageHeader,
@@ -364,26 +368,16 @@ function PlanHero({
               {isTrialEnded ? "Choose a plan ↓" : "Compare plans ↓"}
             </a>
           ) : (
-            <button
+            <SmartButton
+              label="Start free trial"
+              loadingLabel="Preparing checkout..."
+              successEventName="ls:checkout:success"
+              resetEventName="ls:checkout:closed"
+              loading={isStartingTrial}
+              error={trialError}
               onClick={onStartTrial}
-              disabled={isStartingTrial}
-              style={{
-                alignSelf: "flex-start",
-                padding: "10px 16px",
-                borderRadius: 10,
-                border: "none",
-                cursor: isStartingTrial ? "default" : "pointer",
-                background: "var(--primary)",
-                color: "var(--bg)",
-                fontSize: 12.5,
-                fontWeight: 800,
-                fontFamily: "inherit",
-                whiteSpace: "nowrap",
-                opacity: isStartingTrial ? 0.7 : 1,
-              }}
-            >
-              {isStartingTrial ? "Redirecting…" : "Start your free trial"}
-            </button>
+              className="self-start rounded-[10px] px-4 py-2.5 text-[12.5px] font-extrabold whitespace-nowrap"
+            />
           )}
         </div>
       </div>
@@ -707,48 +701,55 @@ const CREDIT_PLAN = {
   name: "Credits",
   priceLabel: "Pay as you go",
   monthlyCredits: "—",
-  imageCost: `${SCAN_PRICES.image} cr`,
-  audioCost: `${SCAN_PRICES.audio} cr`,
-  videoShortCost: `${SCAN_PRICES.video15} cr`,
-  deepVideoCost: `${SCAN_PRICES.video60} cr`,
-  deepVideoMonthlyLimit: "Pay per scan",
+  imageCost: `${FREE_SCAN_PRICES.image} cr`,
+  audioCost: `${FREE_SCAN_PRICES.audio} cr`,
+  videoShortCost: `${FREE_SCAN_PRICES.video15} cr`,
+  deepVideoCost: "Blocked",
+  deepVideoMonthlyLimit: "Blocked",
 };
+const getTablePlan = (key: EarlyAccessPlanId) =>
+  key === "pro" ? PLANS.pro_ea : PLANS.basic;
+
 const FEATURE_ROWS = [
   {
     label: "Credits / month",
     renderCredit: () => CREDIT_PLAN.monthlyCredits,
-    renderPlan: (p: (typeof EARLY_ACCESS_PLANS)[EarlyAccessPlanId]) =>
-      p.monthlyCredits.toLocaleString(),
+    renderPlan: (key: EarlyAccessPlanId) =>
+      getTablePlan(key).monthlyCredits.toLocaleString(),
   },
   {
     label: "Image scan",
     renderCredit: () => CREDIT_PLAN.imageCost,
-    renderPlan: (p: (typeof EARLY_ACCESS_PLANS)[EarlyAccessPlanId]) =>
-      `${p.imageCost} cr`,
+    renderPlan: (key: EarlyAccessPlanId) =>
+      `${getTablePlan(key).imageCost} cr`,
   },
   {
     label: "Audio scan",
     renderCredit: () => CREDIT_PLAN.audioCost,
-    renderPlan: (p: (typeof EARLY_ACCESS_PLANS)[EarlyAccessPlanId]) =>
-      `${p.audioCost} cr`,
+    renderPlan: (key: EarlyAccessPlanId) =>
+      `${getTablePlan(key).audioCost} cr`,
   },
   {
     label: "Short video scan",
     renderCredit: () => CREDIT_PLAN.videoShortCost,
-    renderPlan: (p: (typeof EARLY_ACCESS_PLANS)[EarlyAccessPlanId]) =>
-      `${p.videoShortCost} cr`,
+    renderPlan: (key: EarlyAccessPlanId) =>
+      `${getTablePlan(key).videoShortCost} cr`,
   },
   {
     label: "Deep video scan",
     renderCredit: () => CREDIT_PLAN.deepVideoCost,
-    renderPlan: (p: (typeof EARLY_ACCESS_PLANS)[EarlyAccessPlanId]) =>
-      `${p.deepVideoCost} cr`,
+    renderPlan: (key: EarlyAccessPlanId) => {
+      const plan = getTablePlan(key);
+      return plan.deepVideo ? `${plan.deepVideoCost} cr` : "Blocked";
+    },
   },
   {
     label: "Deep video / month",
     renderCredit: () => CREDIT_PLAN.deepVideoMonthlyLimit,
-    renderPlan: (p: (typeof EARLY_ACCESS_PLANS)[EarlyAccessPlanId]) =>
-      String(p.deepVideoMonthlyLimit),
+    renderPlan: (key: EarlyAccessPlanId) => {
+      const plan = getTablePlan(key);
+      return plan.deepVideo ? String(plan.deepVideoMonthly) : "Blocked";
+    },
   },
 ];
 
@@ -758,6 +759,7 @@ function PlanComparisonTable({
   trialEndsAt,
   onChoose,
   startingPlanId,
+  proPriceCents,
   error,
 }: {
   activePlanId: EarlyAccessPlanId | null;
@@ -765,6 +767,7 @@ function PlanComparisonTable({
   trialEndsAt: string | null;
   onChoose: (id: EarlyAccessPlanId) => void;
   startingPlanId: EarlyAccessPlanId | null;
+  proPriceCents: number;
   error: string | null;
 }) {
   const isOnTrial = trialStatus === "ON_TRIAL";
@@ -792,8 +795,8 @@ function PlanComparisonTable({
       key,
       name: EARLY_ACCESS_PLANS[key].name,
       sub: null,
-      price: fmt(EARLY_ACCESS_PLANS[key].currentPriceCents),
-      badge: key === "pro" && activePlanId !== key ? "Best" : null,
+      price: activePlanId === key ? "Your Plan" : key === "basic" ? fmt(PLANS.basic.priceCents) : fmt(proPriceCents),
+      badge: key === "pro" && activePlanId !== key ? "BEST VALUE" : null,
       highlight: key === "pro",
       active: activePlanId === key,
       cta: activePlanId === key ? "Current" : "Choose",
@@ -884,6 +887,9 @@ function PlanComparisonTable({
           background: color-mix(in srgb, var(--surface2) 72%, var(--surface));
         }
         .plan-name {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
           font-size: 16px;
           font-weight: 800;
           letter-spacing: -0.03em;
@@ -926,9 +932,10 @@ function PlanComparisonTable({
           font-size: 8.5px;
           font-weight: 700;
           letter-spacing: .04em;
-          margin-left: 6px;
+          margin-left: 0;
           line-height: 1.1;
           vertical-align: middle;
+          white-space: nowrap;
         }
         .plan-badge.best {
           background: var(--warning-dim);
@@ -1105,7 +1112,7 @@ function PlanComparisonTable({
                         : "";
                   return (
                     <td key={key} className={planClass}>
-                      {row.renderPlan(EARLY_ACCESS_PLANS[key])}
+                      {row.renderPlan(key)}
                     </td>
                   );
                 })}
@@ -1130,27 +1137,40 @@ function WhyUpgradeCards({
   onChoose,
   onStartTrial,
   canStartTrial,
-  startingPlanId,
-  isStartingTrial,
+  userState,
+  earlyAccessEligible,
+  loadingPlanId,
+  subLoading,
+  subError,
+  trialLoading,
+  trialError,
   error,
 }: {
   activePlanId: EarlyAccessPlanId | null;
   onChoose: (id: EarlyAccessPlanId) => void;
   onStartTrial: () => void;
   canStartTrial: boolean;
-  startingPlanId: EarlyAccessPlanId | null;
-  isStartingTrial: boolean;
+  userState: UserStateKind;
+  earlyAccessEligible: boolean;
+  loadingPlanId: EarlyAccessPlanId | null;
+  subLoading: boolean;
+  subError: string | null;
+  trialLoading: boolean;
+  trialError: string | null;
   error: string | null;
 }) {
+  const formatPerHundredCredits = (priceCents: number, monthlyCredits: number) =>
+    fmt((priceCents / monthlyCredits) * 100);
+
   const cards = [
     {
       key: "basic" as EarlyAccessPlanId,
       headline: "Lighter recurring verification",
-      perCredit: "$0.16",
+      perCredit: formatPerHundredCredits(PLANS.basic.priceCents, PLANS.basic.monthlyCredits),
       points: [
-        "4 cr per image scan",
-        "35 cr per audio scan",
-        "2 deep videos / month",
+        `${PLANS.basic.imageCost} cr / image`,
+        `${PLANS.basic.audioCost} cr / audio`,
+        `${PLANS.basic.videoShortCost} cr / short video`,
       ],
       color: "var(--primary)",
       best: false,
@@ -1158,11 +1178,11 @@ function WhyUpgradeCards({
     {
       key: "pro" as EarlyAccessPlanId,
       headline: "Heavier usage + deep video power",
-      perCredit: "$0.12",
+      perCredit: formatPerHundredCredits(PLANS.pro_ea.priceCents, PLANS.pro_ea.monthlyCredits),
       points: [
-        "3 cr per image scan",
-        "30 cr per audio scan",
-        "4 deep videos / month",
+        "Everything in Basic",
+        `Deep video: ${PLANS.pro_ea.deepVideoCost} cr / ${PLANS.pro_ea.deepVideoMonthly} per mo`,
+        "Premium features unlocked",
       ],
       color: "var(--warning)",
       best: true,
@@ -1181,9 +1201,34 @@ function WhyUpgradeCards({
         {cards.map((c) => {
           const plan = EARLY_ACCESS_PLANS[c.key];
           const active = activePlanId === c.key;
-          const loading =
-            startingPlanId === c.key || (c.key === "pro" && isStartingTrial);
+          const activeTrial = c.key === "pro" && (userState === "ea_trial" || userState === "normal_trial");
+          const activePro = c.key === "pro" && (userState === "ea_pro" || userState === "normal_pro" || userState === "loyalty_pro");
           const proTrialEntry = c.key === "pro" && canStartTrial;
+          const managePlanEntry = activePro;
+          const disabled = active || activeTrial;
+          const buttonLabel = activeTrial
+            ? "Trial in progress"
+            : managePlanEntry
+              ? "Manage Plan"
+              : active
+                ? "Current plan"
+                : proTrialEntry
+                  ? "Start free trial"
+                  : `Choose ${plan.name}`;
+          const badgeLabel = c.key === "pro"
+            ? activeTrial
+              ? "Trial Active"
+              : activePro
+                ? "Your Plan"
+                : proTrialEntry
+                  ? earlyAccessEligible
+                    ? "Early Access Trial"
+                    : "Free Trial"
+                  : "Pro"
+            : null;
+          const loading = proTrialEntry
+            ? trialLoading
+            : loadingPlanId === c.key && subLoading;
           return (
             <div
               key={c.key}
@@ -1233,7 +1278,7 @@ function WhyUpgradeCards({
                 >
                   {plan.name}
                 </span>
-                {c.best ? (
+                {badgeLabel ? (
                   <div
                     style={{
                       padding: "2px 8px",
@@ -1247,7 +1292,7 @@ function WhyUpgradeCards({
                       letterSpacing: ".06em",
                     }}
                   >
-                    BEST VALUE
+                    {badgeLabel}
                   </div>
                 ) : null}
               </div>
@@ -1356,55 +1401,29 @@ function WhyUpgradeCards({
                   </div>
                 ))}
               </div>
-              <button
+              <SmartButton
+                label={buttonLabel}
+                loadingLabel="Preparing checkout..."
+                successEventName="ls:checkout:success"
+                resetEventName="ls:checkout:closed"
+                loading={loading}
+                disabled={disabled || (!loading && (subLoading || trialLoading))}
+                error={proTrialEntry ? trialError : loadingPlanId === c.key ? subError : null}
                 onClick={() => {
-                  if (active) return;
+                  if (disabled) return;
+                  if (managePlanEntry) {
+                    document.getElementById("manage-plan")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    return;
+                  }
                   if (proTrialEntry) {
                     onStartTrial();
                     return;
                   }
                   onChoose(c.key);
                 }}
-                disabled={startingPlanId !== null || isStartingTrial || active}
-                style={{
-                  width: "100%",
-                  marginTop: 16,
-                  padding: "10px 14px",
-                  borderRadius: 11,
-                  border: c.best
-                    ? "none"
-                    : "1px solid color-mix(in srgb, var(--primary) 28%, transparent)",
-                  background: active
-                    ? "var(--surface2)"
-                    : c.best
-                      ? "var(--primary)"
-                      : "var(--primary-dim)",
-                  color: active
-                    ? "var(--text-dim)"
-                    : c.best
-                      ? "var(--bg)"
-                      : "var(--primary)",
-                  fontSize: 12.5,
-                  fontWeight: 800,
-                  fontFamily: "inherit",
-                  cursor:
-                    startingPlanId !== null || isStartingTrial || active
-                      ? "default"
-                      : "pointer",
-                  opacity:
-                    (startingPlanId !== null || isStartingTrial) && !loading
-                      ? 0.65
-                      : 1,
-                }}
-              >
-                {loading
-                  ? "Redirecting…"
-                  : active
-                    ? "Current plan"
-                    : proTrialEntry
-                      ? "Start free trial"
-                      : `Choose ${plan.name}`}
-              </button>
+                variant={c.best ? "primary" : "secondary"}
+                className="mt-4 w-full rounded-[11px] px-3.5 py-2.5 text-[12.5px] font-extrabold"
+              />
             </div>
           );
         })}
@@ -1499,16 +1518,17 @@ function UsageSummary({
 
 export default function SubscriptionPage() {
   const { me } = useAppMe();
-  const [startingPlanId, setStartingPlanId] =
-    useState<EarlyAccessPlanId | null>(null);
-  const [subscriptionError, setSubscriptionError] = useState<string | null>(
-    null,
-  );
-  const [isStartingTrial, setIsStartingTrial] = useState(false);
-  const [trialError, setTrialError] = useState<string | null>(null);
-  const [pendingPlanId, setPendingPlanId] = useState<EarlyAccessPlanId | null>(
-    null,
-  );
+  const {
+    openCheckout: openTrialCheckout,
+    loading: trialLoading,
+    error: trialError,
+  } = useCheckout();
+  const {
+    openCheckout,
+    loading: subLoading,
+    error: subError,
+  } = useCheckout();
+  const [loadingPlanId, setLoadingPlanId] = useState<EarlyAccessPlanId | null>(null);
 
   const trialBalance = me?.trial?.balance ?? 0;
   const trialTotal = TRIAL_INTERNAL_VALUE_CENTS;
@@ -1537,67 +1557,64 @@ export default function SubscriptionPage() {
     trialStatus !== "ACTIVE" &&
     hasTrialRecord &&
     (!trialBalance || Boolean(trialEndsAtMs && trialEndsAtMs <= Date.now()));
-  const trialBlockState: "active" | "ended" | "none" | "hidden" =
-    trialStatus === "ACTIVE" ||
-    (me?.trial?.isPaidUser && !isTrialActive && !isTrialEnded)
-      ? "hidden"
-      : isTrialActive
-        ? "active"
-        : isTrialEnded
-          ? "ended"
-          : "none";
-  const canStartTrial = trialBlockState === "none";
+  const userState = resolveUserState(me);
+  const hasActiveTrial = userState === "ea_trial" || userState === "normal_trial";
+  const hasActiveSubscriber =
+    userState === "basic" ||
+    userState === "ea_pro" ||
+    userState === "normal_pro" ||
+    userState === "loyalty_pro";
+  const hasUsedTrial = userState === "trial_expired";
+  const canStartTrial = userState === "free" || userState === "wallet_only";
+  const proPriceCents =
+    me?.subscription?.subscriptionPlanId === "pro" &&
+    me.subscription.status === "ACTIVE" &&
+    me.subscription.subscriptionPriceCents
+      ? me.subscription.subscriptionPriceCents
+      : me?.earlyAccessEligible
+        ? PLANS.pro_ea.priceCents
+        : PLANS.pro_normal.priceCents;
+  const trialBlockState: "active" | "ended" | "none" | "hidden" = hasActiveSubscriber
+    ? "hidden"
+    : hasActiveTrial
+      ? "active"
+      : hasUsedTrial
+        ? "ended"
+        : "none";
 
   async function handleSubscription(planId: EarlyAccessPlanId) {
-    if (startingPlanId) return;
-    setPendingPlanId(planId);
-  }
-
-  async function confirmStartSubscription() {
-    if (!pendingPlanId) return;
-    setSubscriptionError(null);
-    setStartingPlanId(pendingPlanId);
+    setLoadingPlanId(planId);
     try {
-      const res = await fetch("/api/billing/checkout/subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: pendingPlanId }),
-      });
-      const payload = await res.json();
-      if (!res.ok || !payload?.success || !payload?.data?.checkoutUrl) {
-        throw new Error(payload?.error || "Subscription not available yet.");
-      }
-      window.location.href = payload.data.checkoutUrl;
-    } catch (error) {
-      setSubscriptionError(
-        error instanceof Error
-          ? error.message
-          : "Subscription not available yet.",
+      await openCheckout(() =>
+        fetch("/api/billing/checkout/subscription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ planId }),
+        })
+          .then((res) => res.json())
+          .then((payload) => {
+            if (!payload?.success || !payload?.data?.checkoutUrl) {
+              throw new Error(payload?.error || "Subscription not available yet.");
+            }
+            return payload.data.checkoutUrl as string;
+          }),
       );
-      setStartingPlanId(null);
-      setPendingPlanId(null);
+    } finally {
+      setLoadingPlanId(null);
     }
   }
 
-  async function handleStartTrial() {
-    if (isStartingTrial) return;
-    setTrialError(null);
-    setIsStartingTrial(true);
-    try {
-      const res = await fetch("/api/billing/checkout/trial", {
-        method: "POST",
-      });
-      const payload = await res.json();
-      if (!res.ok || !payload?.success || !payload?.data?.checkoutUrl) {
-        throw new Error(payload?.error || "Unable to start trial.");
-      }
-      window.location.href = payload.data.checkoutUrl;
-    } catch (error) {
-      setTrialError(
-        error instanceof Error ? error.message : "Unable to start trial.",
-      );
-      setIsStartingTrial(false);
-    }
+  function handleStartTrial() {
+    return openTrialCheckout(() =>
+      fetch("/api/billing/checkout/trial", { method: "POST" })
+        .then((res) => res.json())
+        .then((payload) => {
+          if (!payload?.success || !payload?.data?.checkoutUrl) {
+            throw new Error(payload?.error || "Unable to start trial.");
+          }
+          return payload.data.checkoutUrl as string;
+        }),
+    );
   }
 
   return (
@@ -1626,7 +1643,7 @@ export default function SubscriptionPage() {
               trialTotal={trialTotal}
               trialEndsAt={trialEndsAt}
               onStartTrial={handleStartTrial}
-              isStartingTrial={isStartingTrial}
+              isStartingTrial={trialLoading}
               trialError={trialError}
             />
           </div>
@@ -1643,8 +1660,9 @@ export default function SubscriptionPage() {
                 trialStatus={trialStatus}
                 trialEndsAt={trialEndsAt}
                 onChoose={handleSubscription}
-                startingPlanId={startingPlanId}
-                error={subscriptionError}
+                startingPlanId={null}
+                proPriceCents={proPriceCents}
+                error={subError}
               />
             </div>
           </div>
@@ -1659,9 +1677,14 @@ export default function SubscriptionPage() {
               onChoose={handleSubscription}
               onStartTrial={handleStartTrial}
               canStartTrial={canStartTrial}
-              startingPlanId={startingPlanId}
-              isStartingTrial={isStartingTrial}
-              error={subscriptionError}
+              userState={userState}
+              earlyAccessEligible={me?.earlyAccessEligible ?? false}
+              loadingPlanId={loadingPlanId}
+              subLoading={subLoading}
+              subError={subError}
+              trialLoading={trialLoading}
+              trialError={trialError}
+              error={subError || trialError}
             />
           </div>
 
@@ -1727,19 +1750,6 @@ export default function SubscriptionPage() {
         </section>
       </AppPage>
 
-      {pendingPlanId ? (
-        <CheckoutConfirmModal
-          title={`Subscribe to ${EARLY_ACCESS_PLANS[pendingPlanId].name}?`}
-          description={`You’re about to continue to ${EARLY_ACCESS_PLANS[pendingPlanId].name} checkout.`}
-          confirmLabel="Continue"
-          loading={startingPlanId !== null}
-          onClose={() => {
-            if (startingPlanId !== null) return;
-            setPendingPlanId(null);
-          }}
-          onConfirm={() => void confirmStartSubscription()}
-        />
-      ) : null}
     </>
   );
 }

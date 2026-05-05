@@ -53,7 +53,7 @@ export const PLANS = {
     audioCost: ACTIVE_PRICING.scanPrices.audio,
     videoShortCost: ACTIVE_PRICING.scanPrices.videoShort,
     deepVideoCost: ACTIVE_PRICING.scanPrices.deepVideo,
-    deepVideoMonthly: 25,
+    deepVideoMonthly: 15,
     deepVideo: true,
     dailyScans: 20,
     historyDays: -1,

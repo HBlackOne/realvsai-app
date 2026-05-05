@@ -129,6 +129,8 @@ export async function POST(request: Request) {
         trial_balance_insufficient: "Insufficient trial balance for this scan.",
         subscription_deep_video_limit_reached:
           "Monthly deep video limit reached for your subscription plan.",
+        monthly_audio_limit_reached:
+          "Monthly audio scan limit reached. Resets next month.",
         trial_limit_reached:
           "You've reached your trial scan limit for today. Upgrade to continue scanning.",
         wallet_limit_reached:

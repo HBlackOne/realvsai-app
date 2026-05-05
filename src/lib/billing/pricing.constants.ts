@@ -12,7 +12,7 @@ export const PRICING_MODES = {
     name: "Growth Mode",
     scanPrices: {
       image: 2,
-      audio: 40,
+      audio: 50,
       videoShort: 30,
       deepVideo: 80,
     },
@@ -64,7 +64,7 @@ export const PRICING_MODES = {
       basic: { deepVideoMonthlyLimit: 0 },
       proEarlyAccess: { deepVideoMonthlyLimit: 15 },
       proLoyalty: { deepVideoMonthlyLimit: 15 },
-      proNormal: { deepVideoMonthlyLimit: 25 },
+      proNormal: { deepVideoMonthlyLimit: 15 },
     },
   },
   transition: {
@@ -72,7 +72,7 @@ export const PRICING_MODES = {
     name: "Transition Mode",
     scanPrices: {
       image: 2,
-      audio: 40,
+      audio: 50,
       videoShort: 30,
       deepVideo: 80,
     },
@@ -124,7 +124,7 @@ export const PRICING_MODES = {
       basic: { deepVideoMonthlyLimit: 0 },
       proEarlyAccess: { deepVideoMonthlyLimit: 15 },
       proLoyalty: { deepVideoMonthlyLimit: 15 },
-      proNormal: { deepVideoMonthlyLimit: 25 },
+      proNormal: { deepVideoMonthlyLimit: 15 },
     },
   },
   safety: {
@@ -183,7 +183,7 @@ export const PRICING_MODES = {
       basic: { deepVideoMonthlyLimit: 1 },
       proEarlyAccess: { deepVideoMonthlyLimit: 15 },
       proLoyalty: { deepVideoMonthlyLimit: 15 },
-      proNormal: { deepVideoMonthlyLimit: 25 },
+      proNormal: { deepVideoMonthlyLimit: 15 },
     },
   },
 } as const;
@@ -303,7 +303,8 @@ export const PROTECTION_LIMITS = {
   maxTotalScansPerDayBasic: 10,
   maxTotalScansPerDayPro: 20,
   maxDeepScansPerMonthEarlyAccessPro: 15,
-  maxDeepScansPerMonthNormalPro: 25,
+  maxDeepScansPerMonthNormalPro: 15,
+  maxAudioScansPerMonth: 15,
   maxShortVideoScansPerDay: 10,
   maxFailedRetriesPerDay: 5,
   costSoftAlertBps: 8000,
