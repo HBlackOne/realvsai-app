@@ -12,8 +12,10 @@ import { PLANS } from "@/lib/billing/plans";
 import { TRIAL_INTERNAL_VALUE_CENTS } from "@/lib/billing/trial.constants";
 import ArcMeter from "@/components/billing/ArcMeter";
 import { SmartButton } from "@/components/ui/SmartButton";
+import { useToast } from "@/components/ui/Toast";
 import { useAppMe } from "@/hooks/use-app-me";
 import { useCheckout } from "@/hooks/use-checkout";
+import type { AppMeData } from "@/lib/api/me";
 import { resolveUserState, type UserStateKind } from "@/lib/user-state";
 import {
   AppPage,
@@ -28,6 +30,34 @@ function fmt(cents: number) {
     style: "currency",
     currency: "USD",
   }).format(cents / 100);
+}
+
+function formatSubscriptionStatus(status: string): string {
+  switch (status) {
+    case "ON_TRIAL":
+      return "Free Trial Active";
+    case "ACTIVE":
+      return "Active";
+    case "CANCELED":
+      return "Cancelled";
+    case "EXPIRED":
+      return "Expired";
+    case "PAST_DUE":
+      return "Payment overdue";
+    default:
+      return status;
+  }
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function Icon({
@@ -64,6 +94,7 @@ function SectionLabel({ icon, label }: { icon: string; label: string }) {
 function PlanHero({
   planId,
   subBalance,
+  walletBalance,
   monthlyCredits,
   status,
   isLocked,
@@ -78,6 +109,7 @@ function PlanHero({
 }: {
   planId: EarlyAccessPlanId | null;
   subBalance: number;
+  walletBalance: number;
   monthlyCredits: number;
   status: string;
   isLocked: boolean;
@@ -385,11 +417,18 @@ function PlanHero({
   }
 
   const plan = EARLY_ACCESS_PLANS[planId];
-  const pct = monthlyCredits > 0 ? subBalance / monthlyCredits : 0;
   const price = priceCents ?? plan.currentPriceCents;
+  const isTrialSubscription = status === "ON_TRIAL";
+  const totalAvailable = trialBalance + walletBalance + subBalance;
+  const creditsUsed = 0;
+  const displayPercent = totalAvailable > 0
+    ? Math.round((creditsUsed / totalAvailable) * 100)
+    : 0;
+  const meterColor = isTrialSubscription ? "var(--warning)" : "var(--primary)";
+  const badgeLabel = isTrialSubscription ? "TRIAL" : "ACTIVE";
   const specs = [
     { label: "Credits / month", val: plan.monthlyCredits.toLocaleString() },
-    { label: "Deep video / month", val: String(plan.deepVideoMonthlyLimit) },
+    { label: "Deep / month", val: String(plan.deepVideoMonthlyLimit) },
     { label: "Image scan", val: `${plan.imageCost} cr` },
     { label: "Audio scan", val: `${plan.audioCost} cr` },
     { label: "Short video", val: `${plan.videoShortCost} cr` },
@@ -400,12 +439,11 @@ function PlanHero({
     <div
       style={{
         background: "linear-gradient(135deg,#0f1420 0%,#0c0e18 100%)",
-        border: "1px solid color-mix(in srgb, var(--primary) 20%, transparent)",
+        border: `1px solid color-mix(in srgb, ${meterColor} 20%, transparent)`,
         borderRadius: 18,
-        padding: "24px",
+        padding: "16px",
         position: "relative",
         overflow: "hidden",
-        boxShadow: "0 0 40px var(--primary-glow)",
       }}
     >
       <div
@@ -416,35 +454,35 @@ function PlanHero({
           width: 200,
           height: 200,
           borderRadius: "50%",
-          background: "var(--primary-glow)",
+          background: isTrialSubscription
+            ? "color-mix(in srgb, var(--warning) 14%, transparent)"
+            : "var(--primary-glow)",
           filter: "blur(60px)",
           pointerEvents: "none",
         }}
       />
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 16 }}>
         <div
           style={{
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "space-between",
             gap: 12,
-            marginBottom: 20,
-            flexWrap: "wrap",
           }}
         >
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
-                marginBottom: 6,
+                gap: 8,
                 flexWrap: "wrap",
+                marginBottom: 5,
               }}
             >
               <h2
                 style={{
-                  fontSize: 24,
+                  fontSize: 20,
                   fontWeight: 800,
                   letterSpacing: "-0.04em",
                   color: "var(--text)",
@@ -454,29 +492,28 @@ function PlanHero({
               </h2>
               <div
                 style={{
-                  padding: "3px 10px",
+                  padding: "3px 9px",
                   borderRadius: 100,
-                  background: "var(--primary-dim)",
-                  border:
-                    "1px solid color-mix(in srgb, var(--primary) 25%, transparent)",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "var(--primary)",
+                  background: isTrialSubscription ? "var(--warning-dim)" : "var(--primary-dim)",
+                  border: `1px solid color-mix(in srgb, ${meterColor} 25%, transparent)`,
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  color: meterColor,
                   letterSpacing: ".06em",
                 }}
               >
-                ACTIVE
+                {badgeLabel}
               </div>
               {isLocked ? (
                 <div
                   style={{
-                    padding: "3px 10px",
+                    padding: "3px 9px",
                     borderRadius: 100,
                     background: "var(--warning-dim)",
                     border:
                       "1px solid color-mix(in srgb, var(--warning) 25%, transparent)",
-                    fontSize: 10,
-                    fontWeight: 700,
+                    fontSize: 9.5,
+                    fontWeight: 800,
                     color: "var(--warning)",
                     letterSpacing: ".06em",
                   }}
@@ -485,80 +522,59 @@ function PlanHero({
                 </div>
               ) : null}
             </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+            <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.4 }}>
+              Status: <span style={{ color: meterColor, fontWeight: 700 }}>{formatSubscriptionStatus(status)}</span>
+            </div>
+          </div>
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <span
+              style={{
+                fontSize: 18,
+                fontWeight: 800,
+                letterSpacing: "-0.04em",
+                color: "var(--text)",
+                fontFamily: "'DM Mono',monospace",
+              }}
+            >
+              {fmt(price)}
+            </span>
+            <span style={{ fontSize: 11, color: "var(--text)" }}>/mo</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
+          <div style={{ position: "relative", width: 108, height: 108 }}>
+            <ArcMeter pct={displayPercent / 100} color={meterColor} size={108} strokeWidth={8} />
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <span
                 style={{
-                  fontSize: 32,
+                  fontSize: 24,
                   fontWeight: 800,
-                  letterSpacing: "-0.04em",
-                  color: "var(--text)",
+                  color: meterColor,
                   fontFamily: "'DM Mono',monospace",
                 }}
               >
-                {fmt(price)}
-              </span>
-              <span style={{ fontSize: 13, color: "var(--text)" }}>
-                / month
-              </span>
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text)", marginTop: 4 }}>
-              Status:{" "}
-              <span style={{ color: "var(--success)", fontWeight: 600 }}>
-                {status}
+                {displayPercent}%
               </span>
             </div>
           </div>
           <div
             style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 6,
+              fontSize: 11.5,
+              fontWeight: 700,
+              color: "var(--text-muted)",
+              fontFamily: "'DM Mono',monospace",
             }}
           >
-            <div style={{ position: "relative", width: 80, height: 80 }}>
-              <ArcMeter
-                pct={pct}
-                color="var(--primary)"
-                size={80}
-                strokeWidth={6}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "var(--primary)",
-                    fontFamily: "'DM Mono',monospace",
-                  }}
-                >
-                  {Math.round(pct * 100)}%
-                </span>
-              </div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "var(--text)",
-                  fontFamily: "'DM Mono',monospace",
-                }}
-              >
-                {subBalance.toLocaleString()}
-              </div>
-              <div style={{ fontSize: 10, color: "var(--text)" }}>
-                of {monthlyCredits.toLocaleString()} cr
-              </div>
-            </div>
+            {creditsUsed.toLocaleString()} of {totalAvailable.toLocaleString()} cr used
           </div>
         </div>
 
@@ -569,8 +585,7 @@ function PlanHero({
               border:
                 "1px solid color-mix(in srgb, var(--warning) 20%, transparent)",
               borderRadius: 12,
-              padding: "12px 16px",
-              marginBottom: 18,
+              padding: "10px 12px",
               display: "flex",
               alignItems: "flex-start",
               gap: 10,
@@ -585,7 +600,7 @@ function PlanHero({
               <div
                 style={{
                   fontSize: 12,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   color: "var(--warning)",
                   marginBottom: 3,
                 }}
@@ -596,7 +611,7 @@ function PlanHero({
                 style={{
                   fontSize: 11.5,
                   color: "var(--text-muted)",
-                  lineHeight: 1.6,
+                  lineHeight: 1.55,
                 }}
               >
                 You joined during Early Access and keep this price unless you
@@ -610,7 +625,7 @@ function PlanHero({
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3,1fr)",
-            gap: 8,
+            gap: 7,
           }}
         >
           {specs.map((s) => (
@@ -620,23 +635,23 @@ function PlanHero({
                 background: "rgba(255,255,255,0.03)",
                 border: "1px solid rgba(255,255,255,0.07)",
                 borderRadius: 10,
-                padding: "10px 12px",
+                padding: "8px 9px",
               }}
             >
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: 9,
                   color: "var(--text)",
                   textTransform: "uppercase",
-                  letterSpacing: ".1em",
-                  marginBottom: 4,
+                  letterSpacing: ".07em",
+                  marginBottom: 2,
                 }}
               >
                 {s.label}
               </div>
               <div
                 style={{
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: 700,
                   color: "var(--text)",
                   fontFamily: "'DM Mono',monospace",
@@ -850,6 +865,9 @@ function PlanComparisonTable({
         .pricing-table .plan-col-active {
           background: color-mix(in srgb, var(--primary) 8%, transparent);
         }
+        .pricing-table .plan-col-active-pro {
+          background: color-mix(in srgb, var(--warning) 9%, transparent);
+        }
         .pricing-table tbody td {
           background: var(--surface);
           color: var(--text);
@@ -873,6 +891,10 @@ function PlanComparisonTable({
         .pricing-table tbody td.plan-col-active {
           background: color-mix(in srgb, var(--primary) 5%, transparent);
           color: var(--primary);
+        }
+        .pricing-table tbody td.plan-col-active-pro {
+          background: color-mix(in srgb, var(--warning) 5%, transparent);
+          color: var(--warning);
         }
         .pricing-table tbody tr:nth-child(even) td:not(.credits-col):not(.plan-col-highlight):not(.plan-col-active) {
           background: rgba(255,255,255,0.01);
@@ -899,6 +921,9 @@ function PlanComparisonTable({
         .plan-name.active {
           color: var(--primary);
         }
+        .plan-name.active-pro {
+          color: var(--warning);
+        }
         .plan-sub {
           font-size: 13px;
           color: var(--text-dim);
@@ -918,6 +943,9 @@ function PlanComparisonTable({
         }
         .plan-price.active {
           color: var(--primary);
+        }
+        .plan-price.active-pro {
+          color: var(--warning);
         }
         .plan-price span {
           font-size: 10.5px;
@@ -946,6 +974,11 @@ function PlanComparisonTable({
           background: var(--primary-dim);
           border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
           color: var(--primary);
+        }
+        .plan-badge.active-pro {
+          background: var(--warning-dim);
+          border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+          color: var(--warning);
         }
         .table-btn {
           display: inline-flex;
@@ -1065,7 +1098,7 @@ function PlanComparisonTable({
               {plans.map((plan) => {
                 const headerClass = [
                   plan.key === "credits" ? "credits-col" : "",
-                  plan.active ? "plan-col-active" : "",
+                  plan.active ? (plan.key === "pro" ? "plan-col-active-pro" : "plan-col-active") : "",
                   !plan.active && plan.highlight ? "plan-col-highlight" : "",
                 ]
                   .filter(Boolean)
@@ -1073,13 +1106,13 @@ function PlanComparisonTable({
 
                 return (
                   <th key={plan.key} className={headerClass}>
-                    <div className={`plan-name${plan.active ? " active" : ""}`}>
+                    <div className={`plan-name${plan.active ? (plan.key === "pro" ? " active-pro" : " active") : ""}`}>
                       {plan.name}
                       {plan.badge ? (
                         <span className="plan-badge best">{plan.badge}</span>
                       ) : null}
                       {plan.active ? (
-                        <span className="plan-badge active">CURRENT</span>
+                        <span className={`plan-badge ${plan.key === "pro" ? "active-pro" : "active"}`}>CURRENT</span>
                       ) : null}
                     </div>
                     {plan.sub ? (
@@ -1087,9 +1120,9 @@ function PlanComparisonTable({
                     ) : null}
                     {plan.price ? (
                       <div
-                        className={`plan-price${plan.active ? " active" : ""}`}
+                        className={`plan-price${plan.active ? (plan.key === "pro" ? " active-pro" : " active") : ""}`}
                       >
-                        {plan.price} <span>/mo</span>
+                        {plan.price === "Your Plan" ? plan.price : <>{plan.price} <span>/mo</span></>}
                       </div>
                     ) : null}
                   </th>
@@ -1106,7 +1139,7 @@ function PlanComparisonTable({
                 {PLAN_ORDER.map((key) => {
                   const planClass =
                     activePlanId === key
-                      ? "plan-col-active"
+                      ? key === "pro" ? "plan-col-active-pro" : "plan-col-active"
                       : key === "pro"
                         ? "plan-col-highlight"
                         : "";
@@ -1437,6 +1470,93 @@ function WhyUpgradeCards({
   );
 }
 
+function ManagePlanSection({
+  me,
+  refresh,
+  showToast,
+}: {
+  me: AppMeData;
+  refresh: () => Promise<void>;
+  showToast: (message: string, type?: "success" | "error" | "info") => void;
+}) {
+  const sub = me.subscription;
+  const accessEndsAt = sub?.trialEndsAt ?? sub?.renewsAt ?? sub?.currentPeriodEnd ?? null;
+  const dateLabel = formatDate(accessEndsAt);
+
+  async function handleCancelPlan() {
+    const res = await fetch("/api/billing/subscription/cancel", {
+      method: "POST",
+    });
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || "Unable to cancel plan.");
+    }
+    await refresh();
+    showToast("Plan cancelled · Access continues until renewal date", "success");
+  }
+
+  async function handleUpdatePayment() {
+    try {
+      const res = await fetch("/api/billing/subscription/payment-url");
+      const data = await res.json();
+      if (!res.ok || !data?.success || !data?.url) {
+        showToast("Unable to update payment method. Try again.", "error");
+        return;
+      }
+      window.LemonSqueezy?.Url?.Open(data.url);
+    } catch {
+      showToast("Connection issue. Try again.", "error");
+    }
+  }
+
+  return (
+    <section id="manage-plan">
+      <SectionLabel
+        icon="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"
+        label="Manage plan"
+      />
+      <div className="space-y-4 rounded-[16px] border border-border bg-surface2 p-4">
+        <div className="flex justify-between gap-4 text-[13px]">
+          <span className="text-text-dim">
+            {sub?.status === "ON_TRIAL" ? "Trial ends" : "Renews"}
+          </span>
+          <span className="font-semibold text-text">{dateLabel}</span>
+        </div>
+
+        {sub?.cardBrand || sub?.cardLastFour ? (
+          <div className="flex justify-between gap-4 text-[13px]">
+            <span className="text-text-dim">Payment method</span>
+            <span className="font-semibold text-text">
+              {[sub.cardBrand, sub.cardLastFour ? `•••• ${sub.cardLastFour}` : null]
+                .filter(Boolean)
+                .join(" ")}
+            </span>
+          </div>
+        ) : null}
+
+        <button
+            type="button"
+            onClick={handleUpdatePayment}
+            className="w-full rounded-[12px] border border-border bg-surface px-4 py-2.5 text-[13px] font-semibold text-text-muted transition hover:bg-surface-hover"
+          >
+            Update payment method
+          </button>
+
+        <SmartButton
+          label="Cancel Plan"
+          confirmLabel={`Cancel plan? Access ends ${dateLabel} · Tap again`}
+          loadingLabel="Cancelling..."
+          successLabel="Plan cancelled"
+          variant="danger"
+          requiresConfirm
+          onClick={handleCancelPlan}
+          className="w-full"
+        />
+      </div>
+    </section>
+  );
+}
+
 function UsageSummary({
   subBal,
   subMonthly,
@@ -1517,7 +1637,8 @@ function UsageSummary({
 }
 
 export default function SubscriptionPage() {
-  const { me } = useAppMe();
+  const { me, refresh } = useAppMe();
+  const { showToast } = useToast();
   const {
     openCheckout: openTrialCheckout,
     loading: trialLoading,
@@ -1536,6 +1657,7 @@ export default function SubscriptionPage() {
     me?.subscription?.trialEndsAt ?? me?.trial?.trialEndsAt ?? null;
   const trialStatus = me?.subscription?.status ?? "INACTIVE";
   const subBalance = me?.subscription?.subscriptionCreditBalance ?? 0;
+  const walletBalance = me?.wallet?.balance ?? 0;
   const monthlyCredits = me?.subscription?.subscriptionMonthlyCredits ?? 0;
   const planId =
     (me?.subscription?.subscriptionPlanId as EarlyAccessPlanId | null) ?? null;
@@ -1581,6 +1703,15 @@ export default function SubscriptionPage() {
       : hasUsedTrial
         ? "ended"
         : "none";
+  const showWhyUpgrade = ["free", "wallet_only", "basic", "trial_expired"].includes(userState);
+  const showManagePlan = [
+    "ea_trial",
+    "normal_trial",
+    "ea_pro",
+    "normal_pro",
+    "loyalty_pro",
+    "basic",
+  ].includes(userState);
 
   async function handleSubscription(planId: EarlyAccessPlanId) {
     setLoadingPlanId(planId);
@@ -1634,6 +1765,7 @@ export default function SubscriptionPage() {
             <PlanHero
               planId={planId}
               subBalance={subBalance}
+              walletBalance={walletBalance}
               monthlyCredits={monthlyCredits}
               status={subStatus}
               isLocked={isLocked}
@@ -1667,26 +1799,32 @@ export default function SubscriptionPage() {
             </div>
           </div>
 
-          <div>
-            <SectionLabel
-              icon="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0"
-              label="Here is why to upgrade"
-            />
-            <WhyUpgradeCards
-              activePlanId={planId}
-              onChoose={handleSubscription}
-              onStartTrial={handleStartTrial}
-              canStartTrial={canStartTrial}
-              userState={userState}
-              earlyAccessEligible={me?.earlyAccessEligible ?? false}
-              loadingPlanId={loadingPlanId}
-              subLoading={subLoading}
-              subError={subError}
-              trialLoading={trialLoading}
-              trialError={trialError}
-              error={subError || trialError}
-            />
-          </div>
+          {showWhyUpgrade ? (
+            <div>
+              <SectionLabel
+                icon="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0"
+                label="Here is why to upgrade"
+              />
+              <WhyUpgradeCards
+                activePlanId={planId}
+                onChoose={handleSubscription}
+                onStartTrial={handleStartTrial}
+                canStartTrial={canStartTrial}
+                userState={userState}
+                earlyAccessEligible={me?.earlyAccessEligible ?? false}
+                loadingPlanId={loadingPlanId}
+                subLoading={subLoading}
+                subError={subError}
+                trialLoading={trialLoading}
+                trialError={trialError}
+                error={subError || trialError}
+              />
+            </div>
+          ) : null}
+
+          {showManagePlan && me ? (
+            <ManagePlanSection me={me} refresh={refresh} showToast={showToast} />
+          ) : null}
 
           <div
             style={{
