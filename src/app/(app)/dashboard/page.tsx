@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { UsageOverview } from "@/components/dashboard/UsageOverview";
 import { Last7DaysCard } from "@/components/dashboard/Last7DaysCard";
-import { QuickScan } from "@/components/dashboard/QuickScan";
 import { RecentScans, type Scan } from "@/components/dashboard/RecentScans";
 import { AppSectionHeader } from "@/components/app-shell/AppPage";
 import { GrowthNudge } from "@/components/dashboard/GrowthNudge";
@@ -52,62 +51,24 @@ function SectionTitle({ children, icon, action }: { children: React.ReactNode; i
   return <AppSectionHeader title={children} icon={icon} action={action} />;
 }
 
-function buildQuickScanFooter(me: ReturnType<typeof useAppMe>["me"], spendableCredits: number) {
-  const trialActive = Boolean(me?.subscription?.status === "ON_TRIAL" || me?.trial?.trialEndsAt);
-  const hasSubscription = Boolean(me?.subscription && me.subscription.status !== "ON_TRIAL");
-
-  if (spendableCredits > 0) {
-    if (trialActive) {
-      return {
-        text: "Free trial active",
-        primaryHref: "/credits",
-        primaryLabel: "Open billing",
-      };
-    }
-
-    if (hasSubscription) {
-      return {
-        text: "Subscription active",
-        primaryHref: "/subscription",
-        primaryLabel: "Manage subscription",
-        secondaryHref: "/credits",
-        secondaryLabel: "Open billing",
-      };
-    }
-
-    return null;
-  }
-
-  if (trialActive) {
-    return {
-      text: "Trial active, but no credits available",
-      primaryHref: "/credits",
-      primaryLabel: "Open billing",
-      secondaryHref: "/subscription",
-      secondaryLabel: "View plans",
-    };
-  }
-
-  if (hasSubscription) {
-    return {
-      text: "Subscription active, but no credits available",
-      primaryHref: "/credits",
-      primaryLabel: "Add credits",
-      secondaryHref: "/subscription",
-      secondaryLabel: "Manage subscription",
-    };
-  }
-
-  return {
-    text: "No credits available right now",
-    primaryHref: "/credits",
-    primaryLabel: "Open billing",
-    secondaryHref: "/subscription",
-    secondaryLabel: "View plans",
-  };
+function ShimmerRowsCard() {
+  return (
+    <section className="rounded-[18px] border border-border/70 bg-surface p-4">
+      <div className="space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-xl bg-bg px-4 py-4">
+            <span className="balance-shimmer block h-4 w-28 rounded-full" />
+            <span className="balance-shimmer mt-2.5 block h-3 w-44 rounded-full" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
-function DashboardPlaceholderCard({ title, subtitle }: { title: string; subtitle: string }) {
+function DashboardPlaceholderCard({ title, subtitle, loading = false }: { title: string; subtitle: string; loading?: boolean }) {
+  if (loading) return <ShimmerRowsCard />;
+
   return (
     <section className="rounded-[18px] border border-border/70 bg-surface p-4">
       <div className="flex min-h-[148px] flex-col items-center justify-center gap-2.5 text-center">
@@ -168,7 +129,7 @@ function buildUsageState(me: ReturnType<typeof useAppMe>["me"], spendableCredits
 export default function DashboardPage() {
   const { user } = useUser();
   const { me } = useAppMe();
-  const { recentScans, usage } = useDashboardScans();
+  const { recentScans, usage, loading: scansLoading } = useDashboardScans();
 
   const userState = resolveUserState(me);
   const spendableCredits =
@@ -196,7 +157,6 @@ export default function DashboardPage() {
   const aiDetected = useMemo(() => recentScans.filter((scan) => scan.verdict === "AI Generated").length, [recentScans]);
   const realMedia = useMemo(() => recentScans.filter((scan) => scan.verdict === "Authentic").length, [recentScans]);
   const chartData = useMemo(() => buildChartData(recentScans.map((scan) => scan.createdAt)), [recentScans]);
-  const quickScanFooter = useMemo(() => buildQuickScanFooter(me, spendableCredits), [me, spendableCredits]);
   const usageState = useMemo(() => buildUsageState(me, spendableCredits), [me, spendableCredits]);
 
   const isPaidSubscriber = userState === "ea_pro" || userState === "loyalty_pro" || userState === "normal_pro" || userState === "basic";
@@ -212,13 +172,9 @@ export default function DashboardPage() {
 
       <div className="mb-4 lg:hidden">
         <h1 className="text-xl font-semibold text-text">Welcome back, {firstName}</h1>
-        {!me ? (
-          <SkeletonText className="mt-1 w-32" />
-        ) : (
-          <p className="mt-1 text-sm text-text-dim">
-            ⚡ {spendableCredits} credits • {planLabel}
-          </p>
-        )}
+        <p className="mt-1 flex items-center gap-1 text-sm text-text-dim">
+          ⚡ {!me ? <SkeletonText className="h-4 w-12" /> : <span>{spendableCredits}</span>} credits • {!me ? <SkeletonText className="h-4 w-24" /> : <span>{planLabel}</span>}
+        </p>
       </div>
 
       <div className="flex flex-col gap-8 lg:hidden">
@@ -232,6 +188,7 @@ export default function DashboardPage() {
             planLabel={planLabel}
             usageText={usageState.usageText}
             progressPercent={usageState.progressPercent}
+            loadingMe={!me}
           />
         </div>
 
@@ -249,34 +206,26 @@ export default function DashboardPage() {
             Recent Scans
           </SectionTitle>
           <div className="h-[280px]">
-            <RecentScans scans={uiScans} />
+            <RecentScans scans={uiScans} loading={scansLoading} />
           </div>
         </div>
 
         <div>
           <SectionTitle icon="M3 3v18h18M7 14l3-3 3 2 4-5">Last 7 days</SectionTitle>
-          <Last7DaysCard chartData={chartData} />
+          <Last7DaysCard chartData={chartData} loading={scansLoading} />
         </div>
 
         <div>
           <SectionTitle icon="M4 7h16M4 12h10M4 17h13">Last checked profiles/pages/channels</SectionTitle>
-          <DashboardPlaceholderCard title="No checks yet" subtitle="Recent checked profiles, pages, and channels will appear here." />
+          <DashboardPlaceholderCard title="No checks yet" subtitle="Recent checked profiles, pages, and channels will appear here." loading={scansLoading} />
         </div>
 
-        <div>
-          <SectionTitle icon="M13 2L3 14h9l-1 8 10-12h-9l1-8z">Quick Scan</SectionTitle>
-          <QuickScan credits={spendableCredits} footer={quickScanFooter} />
-        </div>
       </div>
 
       <div className="mb-4 hidden lg:block">
-        {!me ? (
-          <SkeletonText className="w-32" />
-        ) : (
-          <p className="text-sm text-text-dim">
-            ⚡ {spendableCredits} credits • {planLabel}
-          </p>
-        )}
+        <p className="flex items-center gap-1 text-sm text-text-dim">
+          ⚡ {!me ? <SkeletonText className="h-4 w-12" /> : <span>{spendableCredits}</span>} credits • {!me ? <SkeletonText className="h-4 w-24" /> : <span>{planLabel}</span>}
+        </p>
       </div>
 
       <div className="hidden gap-8 lg:grid lg:grid-cols-[minmax(0,1.2fr)_320px]">
@@ -295,14 +244,10 @@ export default function DashboardPage() {
               Recent Scans
             </SectionTitle>
             <div className="h-[420px]">
-              <RecentScans scans={uiScans} />
+              <RecentScans scans={uiScans} loading={scansLoading} />
             </div>
           </div>
 
-          <div>
-            <SectionTitle icon="M13 2L3 14h9l-1 8 10-12h-9l1-8z">Quick Scan</SectionTitle>
-            <QuickScan credits={spendableCredits} footer={quickScanFooter} />
-          </div>
         </div>
 
         <div className="flex flex-col gap-8">
@@ -316,17 +261,18 @@ export default function DashboardPage() {
               planLabel={planLabel}
               usageText={usageState.usageText}
               progressPercent={usageState.progressPercent}
+              loadingMe={!me}
             />
           </div>
 
           <div>
             <SectionTitle icon="M3 3v18h18M7 14l3-3 3 2 4-5">Last 7 days</SectionTitle>
-            <Last7DaysCard chartData={chartData} />
+            <Last7DaysCard chartData={chartData} loading={scansLoading} />
           </div>
 
           <div>
             <SectionTitle icon="M4 7h16M4 12h10M4 17h13">Last checked profiles/pages/channels</SectionTitle>
-            <DashboardPlaceholderCard title="No checks yet" subtitle="Recent checked profiles, pages, and channels will appear here." />
+            <DashboardPlaceholderCard title="No checks yet" subtitle="Recent checked profiles, pages, and channels will appear here." loading={scansLoading} />
           </div>
         </div>
       </div>

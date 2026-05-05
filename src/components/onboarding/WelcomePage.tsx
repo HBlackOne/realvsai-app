@@ -23,10 +23,6 @@ export function WelcomePage() {
     return <WelcomeLoadingScreen label="Loading your secure session..." />;
   }
 
-  if (loading) {
-    return <WelcomeLoadingScreen label="Preparing your onboarding..." />;
-  }
-
   if (me?.onboardingComplete) {
     return <WelcomeLoadingScreen label="Opening your dashboard..." />;
   }
@@ -100,6 +96,7 @@ export function WelcomePage() {
         <div style={{ animation: "heroFadeUp 560ms 160ms ease-out forwards", opacity: 0 }}>
           <OnboardingWizard
             earlyAccessEligible={me?.earlyAccessEligible ?? false}
+            loadingMe={!me || loading}
             onStartTrial={handleStartTrial}
             trialLoading={checkoutLoading}
           />

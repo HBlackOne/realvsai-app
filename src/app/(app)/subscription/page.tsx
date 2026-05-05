@@ -12,6 +12,7 @@ import { PLANS } from "@/lib/billing/plans";
 import { TRIAL_INTERNAL_VALUE_CENTS } from "@/lib/billing/trial.constants";
 import ArcMeter from "@/components/billing/ArcMeter";
 import { SmartButton } from "@/components/ui/SmartButton";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { useAppMe } from "@/hooks/use-app-me";
 import { useCheckout } from "@/hooks/use-checkout";
@@ -99,6 +100,8 @@ function PlanHero({
   status,
   isLocked,
   priceCents,
+  showEADiscount,
+  loadingMe,
   trialState,
   trialBalance,
   trialTotal,
@@ -114,6 +117,8 @@ function PlanHero({
   status: string;
   isLocked: boolean;
   priceCents: number | null;
+  showEADiscount: boolean;
+  loadingMe: boolean;
   trialState: "active" | "ended" | "none" | "hidden";
   trialBalance: number;
   trialTotal: number;
@@ -490,20 +495,24 @@ function PlanHero({
               >
                 {plan.name}
               </h2>
-              <div
-                style={{
-                  padding: "3px 9px",
-                  borderRadius: 100,
-                  background: isTrialSubscription ? "var(--warning-dim)" : "var(--primary-dim)",
-                  border: `1px solid color-mix(in srgb, ${meterColor} 25%, transparent)`,
-                  fontSize: 9.5,
-                  fontWeight: 800,
-                  color: meterColor,
-                  letterSpacing: ".06em",
-                }}
-              >
-                {badgeLabel}
-              </div>
+              {loadingMe ? (
+                <SkeletonText className="h-5 w-16" />
+              ) : (
+                <div
+                  style={{
+                    padding: "3px 9px",
+                    borderRadius: 100,
+                    background: isTrialSubscription ? "var(--warning-dim)" : "var(--primary-dim)",
+                    border: `1px solid color-mix(in srgb, ${meterColor} 25%, transparent)`,
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    color: meterColor,
+                    letterSpacing: ".06em",
+                  }}
+                >
+                  {badgeLabel}
+                </div>
+              )}
               {isLocked ? (
                 <div
                   style={{
@@ -522,23 +531,59 @@ function PlanHero({
                 </div>
               ) : null}
             </div>
-            <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.4 }}>
-              Status: <span style={{ color: meterColor, fontWeight: 700 }}>{formatSubscriptionStatus(status)}</span>
-            </div>
+            {loadingMe ? (
+              <SkeletonText className="h-4 w-20" />
+            ) : (
+              <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.4 }}>
+                Status: <span style={{ color: meterColor, fontWeight: 700 }}>{formatSubscriptionStatus(status)}</span>
+              </div>
+            )}
           </div>
           <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <span
-              style={{
-                fontSize: 18,
-                fontWeight: 800,
-                letterSpacing: "-0.04em",
-                color: "var(--text)",
-                fontFamily: "'DM Mono',monospace",
-              }}
-            >
-              {fmt(price)}
-            </span>
-            <span style={{ fontSize: 11, color: "var(--text)" }}>/mo</span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, justifyContent: "flex-end" }}>
+              <span
+                style={{
+                  fontSize: 20,
+                  fontWeight: 800,
+                  letterSpacing: "-0.04em",
+                  color: "var(--text)",
+                  fontFamily: "'DM Mono',monospace",
+                }}
+              >
+                {loadingMe ? <SkeletonText className="h-7 w-20" /> : showEADiscount ? fmt(PLANS.pro_ea.priceCents) : fmt(price)}
+              </span>
+              {showEADiscount ? (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-dim)",
+                    textDecoration: "line-through",
+                    fontFamily: "'DM Mono',monospace",
+                  }}
+                >
+                  {fmt(PLANS.pro_normal.priceCents)}
+                </span>
+              ) : null}
+              <span style={{ fontSize: 11, color: "var(--text)" }}>/mo</span>
+            </div>
+            {loadingMe ? (
+              <SkeletonText className="ml-auto mt-2 h-4 w-32" />
+            ) : showEADiscount ? (
+              <span
+                style={{
+                  display: "inline-block",
+                  marginTop: 5,
+                  borderRadius: 999,
+                  background: "var(--warning-dim)",
+                  padding: "2px 8px",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  color: "var(--warning)",
+                }}
+              >
+                Early Access · Price locked forever
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -574,7 +619,7 @@ function PlanHero({
               fontFamily: "'DM Mono',monospace",
             }}
           >
-            {creditsUsed.toLocaleString()} of {totalAvailable.toLocaleString()} cr used
+            {loadingMe ? "— of — cr used" : `${creditsUsed.toLocaleString()} of ${totalAvailable.toLocaleString()} cr used`}
           </div>
         </div>
 
@@ -657,7 +702,7 @@ function PlanHero({
                   fontFamily: "'DM Mono',monospace",
                 }}
               >
-                {s.val}
+                {loadingMe ? <SkeletonText className="h-5 w-10" /> : s.val}
               </div>
             </div>
           ))}
@@ -775,6 +820,8 @@ function PlanComparisonTable({
   onChoose,
   startingPlanId,
   proPriceCents,
+  showEADiscount,
+  loadingMe,
   error,
 }: {
   activePlanId: EarlyAccessPlanId | null;
@@ -783,6 +830,8 @@ function PlanComparisonTable({
   onChoose: (id: EarlyAccessPlanId) => void;
   startingPlanId: EarlyAccessPlanId | null;
   proPriceCents: number;
+  showEADiscount: boolean;
+  loadingMe: boolean;
   error: string | null;
 }) {
   const isOnTrial = trialStatus === "ON_TRIAL";
@@ -800,6 +849,7 @@ function PlanComparisonTable({
       name: CREDIT_PLAN.name,
       sub: CREDIT_PLAN.priceLabel,
       price: null,
+      showEADiscount: false,
       badge: null,
       highlight: false,
       active: false,
@@ -811,8 +861,9 @@ function PlanComparisonTable({
       name: EARLY_ACCESS_PLANS[key].name,
       sub: null,
       price: activePlanId === key ? "Your Plan" : key === "basic" ? fmt(PLANS.basic.priceCents) : fmt(proPriceCents),
-      badge: key === "pro" && activePlanId !== key ? "BEST VALUE" : null,
-      highlight: key === "pro",
+      showEADiscount: !loadingMe && key === "pro" && activePlanId !== key && showEADiscount,
+      badge: !loadingMe && key === "pro" && activePlanId !== key && !showEADiscount ? "BEST VALUE" : null,
+      highlight: !loadingMe && key === "pro",
       active: activePlanId === key,
       cta: activePlanId === key ? "Current" : "Choose",
       ctaVariant:
@@ -1111,7 +1162,7 @@ function PlanComparisonTable({
                       {plan.badge ? (
                         <span className="plan-badge best">{plan.badge}</span>
                       ) : null}
-                      {plan.active ? (
+                      {!loadingMe && plan.active ? (
                         <span className={`plan-badge ${plan.key === "pro" ? "active-pro" : "active"}`}>CURRENT</span>
                       ) : null}
                     </div>
@@ -1122,7 +1173,15 @@ function PlanComparisonTable({
                       <div
                         className={`plan-price${plan.active ? (plan.key === "pro" ? " active-pro" : " active") : ""}`}
                       >
-                        {plan.price === "Your Plan" ? plan.price : <>{plan.price} <span>/mo</span></>}
+                        {loadingMe && plan.key === "pro" ? (
+                          <SkeletonText className="h-6 w-16" />
+                        ) : plan.showEADiscount ? (
+                          <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                            <span style={{ fontSize: 11, color: "var(--text-dim)", textDecoration: "line-through" }}>{fmt(PLANS.pro_normal.priceCents)}</span>
+                            <span>{fmt(PLANS.pro_ea.priceCents)} <span>/mo</span></span>
+                            <span style={{ borderRadius: 999, background: "var(--warning-dim)", padding: "2px 7px", fontSize: 9, fontWeight: 800, color: "var(--warning)", letterSpacing: ".04em", textTransform: "uppercase" }}>Early Access</span>
+                          </span>
+                        ) : plan.price === "Your Plan" ? plan.price : <>{plan.price} <span>/mo</span></>}
                       </div>
                     ) : null}
                   </th>
@@ -1137,15 +1196,16 @@ function PlanComparisonTable({
                 <td className="feature-label">{row.label}</td>
                 <td className="credits-col">{row.renderCredit()}</td>
                 {PLAN_ORDER.map((key) => {
-                  const planClass =
-                    activePlanId === key
+                          const planClass = loadingMe
+                    ? ""
+                    : activePlanId === key
                       ? key === "pro" ? "plan-col-active-pro" : "plan-col-active"
                       : key === "pro"
                         ? "plan-col-highlight"
                         : "";
                   return (
                     <td key={key} className={planClass}>
-                      {row.renderPlan(key)}
+                      {loadingMe && key === "pro" ? <SkeletonText className="h-4 w-10" /> : row.renderPlan(key)}
                     </td>
                   );
                 })}
@@ -1334,13 +1394,32 @@ function WhyUpgradeCards({
                   position: "relative",
                   fontSize: c.best ? 11.5 : 12,
                   color: "var(--text-muted)",
-                  marginBottom: 12,
+                  marginBottom: c.key === "pro" ? 8 : 12,
                   lineHeight: 1.6,
                   whiteSpace: c.best ? "nowrap" : "normal",
                 }}
               >
                 {c.headline}
               </div>
+              {c.key === "pro" ? (
+                <div style={{ position: "relative", marginBottom: 12 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: "var(--warning)", fontFamily: "'DM Mono',monospace" }}>
+                      {fmt(earlyAccessEligible ? PLANS.pro_ea.priceCents : PLANS.pro_normal.priceCents)}
+                    </span>
+                    {earlyAccessEligible ? (
+                      <span style={{ fontSize: 13, color: "var(--text-dim)", textDecoration: "line-through", fontFamily: "'DM Mono',monospace" }}>
+                        {fmt(PLANS.pro_normal.priceCents)}
+                      </span>
+                    ) : null}
+                  </div>
+                  {earlyAccessEligible ? (
+                    <p style={{ marginTop: 2, fontSize: 11, color: "var(--warning)", fontWeight: 700 }}>
+                      Early Access — save $5/mo · locked forever
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <div
                 style={{
                   position: "relative",
@@ -1475,11 +1554,12 @@ function ManagePlanSection({
   refresh,
   showToast,
 }: {
-  me: AppMeData;
+  me: AppMeData | null;
   refresh: () => Promise<void>;
   showToast: (message: string, type?: "success" | "error" | "info") => void;
 }) {
-  const sub = me.subscription;
+  const sub = me?.subscription ?? null;
+  const loadingMe = !me;
   const accessEndsAt = sub?.trialEndsAt ?? sub?.renewsAt ?? sub?.currentPeriodEnd ?? null;
   const dateLabel = formatDate(accessEndsAt);
 
@@ -1520,23 +1600,27 @@ function ManagePlanSection({
           <span className="text-text-dim">
             {sub?.status === "ON_TRIAL" ? "Trial ends" : "Renews"}
           </span>
-          <span className="font-semibold text-text">{dateLabel}</span>
+          <span className="font-semibold text-text">{loadingMe ? <SkeletonText className="h-4 w-24" /> : dateLabel}</span>
         </div>
 
-        {sub?.cardBrand || sub?.cardLastFour ? (
-          <div className="flex justify-between gap-4 text-[13px]">
-            <span className="text-text-dim">Payment method</span>
-            <span className="font-semibold text-text">
-              {[sub.cardBrand, sub.cardLastFour ? `•••• ${sub.cardLastFour}` : null]
+        <div className="flex justify-between gap-4 text-[13px]">
+          <span className="text-text-dim">Payment method</span>
+          <span className="font-semibold text-text">
+            {loadingMe ? (
+              <SkeletonText className="h-4 w-28" />
+            ) : sub?.cardBrand || sub?.cardLastFour ? (
+              [sub.cardBrand, sub.cardLastFour ? `•••• ${sub.cardLastFour}` : null]
                 .filter(Boolean)
-                .join(" ")}
-            </span>
-          </div>
-        ) : null}
+                .join(" ")
+            ) : (
+              "Not available"
+            )}
+          </span>
+        </div>
 
         <button
             type="button"
-            onClick={handleUpdatePayment}
+            onClick={loadingMe ? undefined : handleUpdatePayment}
             className="w-full rounded-[12px] border border-border bg-surface px-4 py-2.5 text-[13px] font-semibold text-text-muted transition hover:bg-surface-hover"
           >
             Update payment method
@@ -1549,7 +1633,7 @@ function ManagePlanSection({
           successLabel="Plan cancelled"
           variant="danger"
           requiresConfirm
-          onClick={handleCancelPlan}
+          onClick={loadingMe ? async () => {} : handleCancelPlan}
           className="w-full"
         />
       </div>
@@ -1688,14 +1772,12 @@ export default function SubscriptionPage() {
     userState === "loyalty_pro";
   const hasUsedTrial = userState === "trial_expired";
   const canStartTrial = userState === "free" || userState === "wallet_only";
-  const proPriceCents =
-    me?.subscription?.subscriptionPlanId === "pro" &&
-    me.subscription.status === "ACTIVE" &&
-    me.subscription.subscriptionPriceCents
-      ? me.subscription.subscriptionPriceCents
-      : me?.earlyAccessEligible
-        ? PLANS.pro_ea.priceCents
-        : PLANS.pro_normal.priceCents;
+  const showEADiscount = me ? (me.earlyAccessEligible || isLocked) : false;
+  const proPriceCents = !me
+    ? PLANS.pro_normal.priceCents
+    : showEADiscount
+      ? PLANS.pro_ea.priceCents
+      : PLANS.pro_normal.priceCents;
   const trialBlockState: "active" | "ended" | "none" | "hidden" = hasActiveSubscriber
     ? "hidden"
     : hasActiveTrial
@@ -1704,6 +1786,13 @@ export default function SubscriptionPage() {
         ? "ended"
         : "none";
   const showWhyUpgrade = ["free", "wallet_only", "basic", "trial_expired"].includes(userState);
+  const showUpgradeWarning = ![
+    "ea_trial",
+    "normal_trial",
+    "ea_pro",
+    "loyalty_pro",
+    "normal_pro",
+  ].includes(userState);
   const showManagePlan = [
     "ea_trial",
     "normal_trial",
@@ -1763,13 +1852,15 @@ export default function SubscriptionPage() {
               label="Current plan"
             />
             <PlanHero
-              planId={planId}
+              planId={me ? planId : "pro"}
               subBalance={subBalance}
               walletBalance={walletBalance}
               monthlyCredits={monthlyCredits}
               status={subStatus}
               isLocked={isLocked}
               priceCents={priceCents}
+              showEADiscount={me ? planId === "pro" && showEADiscount : false}
+              loadingMe={!me}
               trialState={trialBlockState}
               trialBalance={trialBalance}
               trialTotal={trialTotal}
@@ -1785,7 +1876,7 @@ export default function SubscriptionPage() {
               icon="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10m6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v14"
               label="Pricing table"
             />
-            <PricingWarning />
+            {me && showUpgradeWarning ? <PricingWarning /> : null}
             <div className="mt-3">
               <PlanComparisonTable
                 activePlanId={planId}
@@ -1794,12 +1885,14 @@ export default function SubscriptionPage() {
                 onChoose={handleSubscription}
                 startingPlanId={null}
                 proPriceCents={proPriceCents}
+                showEADiscount={showEADiscount}
+                loadingMe={!me}
                 error={subError}
               />
             </div>
           </div>
 
-          {showWhyUpgrade ? (
+          {me && showWhyUpgrade ? (
             <div>
               <SectionLabel
                 icon="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0"
@@ -1822,7 +1915,7 @@ export default function SubscriptionPage() {
             </div>
           ) : null}
 
-          {showManagePlan && me ? (
+          {!me || showManagePlan ? (
             <ManagePlanSection me={me} refresh={refresh} showToast={showToast} />
           ) : null}
 

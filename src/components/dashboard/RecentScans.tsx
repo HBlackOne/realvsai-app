@@ -33,12 +33,28 @@ const TYPE_COLOR: Record<string, string> = {
 
 interface RecentScansProps {
   scans?: Scan[];
+  loading?: boolean;
 }
 
-export function RecentScans({ scans = [] }: RecentScansProps) {
+function ShimmerRows() {
+  return (
+    <div className="space-y-2 p-3">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-xl bg-bg px-4 py-4">
+          <span className="balance-shimmer block h-4 w-28 rounded-full" />
+          <span className="balance-shimmer mt-2.5 block h-3 w-44 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function RecentScans({ scans = [], loading = false }: RecentScansProps) {
   return (
     <section className="h-full overflow-hidden rounded-[18px] border border-border bg-surface">
-      {scans.length === 0 ? (
+      {loading ? (
+        <ShimmerRows />
+      ) : scans.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center gap-2.5 px-4 py-8 text-center md:px-5">
           <div className="flex h-10 w-10 items-center justify-center rounded-[11px] border border-border bg-surface2">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-dim)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">

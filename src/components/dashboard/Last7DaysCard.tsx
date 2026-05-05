@@ -2,6 +2,7 @@
 
 interface Last7DaysCardProps {
   chartData?: { day: string; v: number }[];
+  loading?: boolean;
 }
 
 const DEFAULT_CHART = [
@@ -14,7 +15,24 @@ const DEFAULT_CHART = [
   { day: "S", v: 1 },
 ];
 
-export function Last7DaysCard({ chartData = DEFAULT_CHART }: Last7DaysCardProps) {
+function ShimmerRows() {
+  return (
+    <section className="rounded-[18px] border border-border/70 bg-surface p-4">
+      <div className="space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-xl bg-bg px-4 py-4">
+            <span className="balance-shimmer block h-4 w-28 rounded-full" />
+            <span className="balance-shimmer mt-2.5 block h-3 w-44 rounded-full" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function Last7DaysCard({ chartData = DEFAULT_CHART, loading = false }: Last7DaysCardProps) {
+  if (loading) return <ShimmerRows />;
+
   const total = chartData.reduce((sum, item) => sum + item.v, 0);
 
   if (total === 0) {

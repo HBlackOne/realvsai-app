@@ -10,6 +10,7 @@ import { FREE_SCAN_PRICES, SCAN_PRICES } from "@/lib/billing/pricing.constants";
 import { resolveUserState } from "@/lib/user-state";
 import { AppSectionHeader } from "@/components/app-shell/AppPage";
 import { SmartButton } from "@/components/ui/SmartButton";
+import { SkeletonText } from "@/components/ui/Skeleton";
 
 
 type PaymentItem = {
@@ -58,8 +59,7 @@ function AnimatedNumber({ value }: { value: number }) {
 }
 
 function WalletTopup({ onCheckout, isStarting, error }: { onCheckout: (packId: string) => Promise<void> | void; isStarting: boolean; error: string | null }) {
-  const defaultIndex = Math.max(0, CREDIT_PACKS.findIndex((pack) => pack.id === "standard"));
-  const [selectedIndex, setSelectedIndex] = useState(defaultIndex);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const pack = CREDIT_PACKS[selectedIndex] ?? CREDIT_PACKS[0];
 
   const positionRatio = selectedIndex / (CREDIT_PACKS.length - 1);
@@ -203,12 +203,14 @@ function WalletTopup({ onCheckout, isStarting, error }: { onCheckout: (packId: s
   );
 }
 
-function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBalance, monthlyCredits, renewsAt }: {
+function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBalance, monthlyCredits, renewsAt, showEADiscount, loadingMe }: {
   activePlanId: string | null;
   hasActiveSubscription: boolean;
   subscriptionBalance: number;
   monthlyCredits: number;
   renewsAt: string | null;
+  showEADiscount: boolean;
+  loadingMe: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const activePlan = activePlanId === "basic" ? PLANS.basic : activePlanId === "pro" ? PLANS.pro_ea : null;
@@ -248,7 +250,13 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
                 {renewsText ? <span className="text-[11px] text-text-muted">Renews {renewsText}</span> : null}
               </div>
               <p className="mt-2 text-[12px] leading-5 text-text-muted">
-                <span className="font-mono font-semibold text-text">{subscriptionBalance.toLocaleString()}</span> of <span className="font-mono">{monthlyCredits.toLocaleString()}</span> monthly credits available.
+                {loadingMe ? (
+                  <SkeletonText className="h-5 w-36" />
+                ) : (
+                  <>
+                    <span className="font-mono font-semibold text-text">{subscriptionBalance.toLocaleString()}</span> of <span className="font-mono">{monthlyCredits.toLocaleString()}</span> monthly credits available.
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -331,7 +339,18 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
                   <div className="flex items-end justify-between gap-2">
                     <div>
                       <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-text-dim">Monthly</div>
-                      <div className="mt-1 font-mono text-[20px] font-extrabold tracking-[-0.05em] text-text">{fmt(proPlan.priceCents)}</div>
+                      {showEADiscount ? (
+                        <div className="mt-1 flex flex-col">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-mono text-[20px] font-extrabold tracking-[-0.05em] text-text">{fmt(proPlan.priceCents)}</span>
+                            <span className="font-mono text-[12px] text-text-dim line-through">{fmt(proPlan.normalPriceCents)}</span>
+                            <span className="text-[11px] text-text-dim">/mo</span>
+                          </div>
+                          <span className="mt-0.5 text-[10px] font-semibold text-warning">Early Access discount active</span>
+                        </div>
+                      ) : (
+                        <div className="mt-1 font-mono text-[20px] font-extrabold tracking-[-0.05em] text-text">{fmt(PLANS.pro_normal.priceCents)}</div>
+                      )}
                     </div>
                     <div className="text-right">
                       <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-text-dim">Included</div>
@@ -366,14 +385,23 @@ function SubscriptionPlans({ activePlanId, hasActiveSubscription, subscriptionBa
   );
 }
 
-function PaymentHistory({ history }: { history: PaymentItem[] }) {
+function PaymentHistory({ history, loading = false }: { history: PaymentItem[]; loading?: boolean }) {
   const [visibleCount, setVisibleCount] = useState(5);
   const visibleHistory = history.slice(0, visibleCount);
   const hasMore = visibleCount < history.length;
 
   return (
     <div className="rounded-[18px] border border-border bg-surface p-5">
-      {history.length === 0 ? (
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-xl bg-bg px-4 py-4">
+              <span className="balance-shimmer block h-4 w-28 rounded-full" />
+              <span className="balance-shimmer mt-2.5 block h-3 w-44 rounded-full" />
+            </div>
+          ))}
+        </div>
+      ) : history.length === 0 ? (
         <div className="py-8 text-center text-[13px] text-text-dim">No payment history yet.</div>
       ) : (
         <>
@@ -428,7 +456,7 @@ function PaymentHistory({ history }: { history: PaymentItem[] }) {
 }
 
 export default function CreditsPage() {
-  const { me } = useAppMe();
+  const { me, loading: meLoading } = useAppMe();
   const { openCheckout, loading, error } = useCheckout();
 
   const trialBal = me?.trial?.balance ?? 0;
@@ -438,13 +466,17 @@ export default function CreditsPage() {
   const subStatus = me?.subscription?.status ?? "INACTIVE";
   const subscriptionBalance = me?.subscription?.subscriptionCreditBalance ?? 0;
   const subscriptionMonthlyCredits = me?.subscription?.subscriptionMonthlyCredits ?? 0;
-  const subscriptionRenewsAt = me?.subscription?.renewsAt ?? me?.subscription?.currentPeriodEnd ?? null;
+  const subscriptionRenewsAt = me?.subscription?.renewsAt ?? me?.subscription?.currentPeriodEnd ?? me?.subscription?.trialEndsAt ?? null;
+  const formattedRenewal = subscriptionRenewsAt
+    ? new Date(subscriptionRenewsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+    : null;
   const walletBal = me?.wallet?.balance ?? 0;
   const paymentHistory = (me?.paymentHistory ?? []) as PaymentItem[];
   const hasActiveSubscription = subStatus === "ACTIVE" || subStatus === "ON_TRIAL";
   const totalBalance = trialBal + subscriptionBalance + walletBal;
   const trialActive = trialStatus === "ON_TRIAL" || Boolean(trialEndsAt);
   const userState = resolveUserState(me);
+  const showEADiscount = (me?.earlyAccessEligible ?? false) || (me?.subscription?.subscriptionPriceLocked ?? false);
 
   const isSubscriber = hasActiveSubscription || trialActive;
   const imageRate = userState === "free" || userState === "wallet_only" ? FREE_SCAN_PRICES.image : SCAN_PRICES.image;
@@ -478,16 +510,52 @@ export default function CreditsPage() {
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-dim">Credit summary</div>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="font-mono text-[28px] font-extrabold tracking-[-0.05em] text-text">{totalBalance.toLocaleString()}</span>
-            <span className="text-[13px] text-text-muted">credits</span>
-          </div>
-          <p className="mt-2 text-[12px] text-text-muted">
-            {isSubscriber
-              ? <>Image scans cost {imageRate} cr on your plan.</>
-              : <>Image scans cost {FREE_SCAN_PRICES.image} cr · <Link href="/subscription" className="text-primary hover:underline">Subscribe for lower rates →</Link></>
-            }
-          </p>
+          {!me || isSubscriber ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[12px] font-semibold text-text">Monthly credits</p>
+                  {formattedRenewal ? (
+                    <p className="mt-0.5 text-[10px] text-text-dim">Resets {formattedRenewal}</p>
+                  ) : null}
+                </div>
+                <p className="text-[16px] font-bold text-text">
+                  {!me ? <SkeletonText className="h-5 w-16" /> : <span>{subscriptionBalance.toLocaleString()} cr</span>}
+                </p>
+              </div>
+
+              <div className="h-px bg-border" />
+
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[12px] font-semibold text-text">Wallet credits</p>
+                  <p className="mt-0.5 text-[10px] text-text-dim">No expiry</p>
+                </div>
+                <p className="text-[16px] font-bold text-text">
+                  {!me ? <SkeletonText className="h-5 w-16" /> : <span>{walletBal.toLocaleString()} cr</span>}
+                </p>
+              </div>
+
+              <div className="h-px bg-border" />
+
+              <p className="text-[11px] text-text-dim">
+                {subPlanId === "basic" ? "Basic" : "Pro"} plan active · Image scans cost {SCAN_PRICES.image} cr
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-[28px] font-bold text-text">
+                {walletBal.toLocaleString()}
+                <span className="text-[16px] font-normal"> credits</span>
+              </p>
+              <p className="mt-1 text-[12px] text-text-dim">
+                Image scans cost {FREE_SCAN_PRICES.image} cr ·{" "}
+                <Link href="/subscription" className="text-primary hover:underline">
+                  Subscribe for lower rates →
+                </Link>
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -500,20 +568,9 @@ export default function CreditsPage() {
       {/* Pay history */}
       <div>
         <SectionLabel icon="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2" label="Pay history" />
-        <PaymentHistory history={paymentHistory} />
+        <PaymentHistory history={paymentHistory} loading={meLoading && !me} />
       </div>
 
-      {/* Subscription */}
-      <div id="credit-subscription-gateway">
-        <SectionLabel icon="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3" label={hasActiveSubscription ? "Subscription" : "Subscribe for more experiences"} />
-        <SubscriptionPlans
-          activePlanId={subPlanId}
-          hasActiveSubscription={hasActiveSubscription}
-          subscriptionBalance={subscriptionBalance}
-          monthlyCredits={subscriptionMonthlyCredits}
-          renewsAt={subscriptionRenewsAt}
-        />
-      </div>
     </div>
   );
 }

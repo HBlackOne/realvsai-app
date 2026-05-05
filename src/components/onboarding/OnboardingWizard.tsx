@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { ArrowLeft, ArrowRight, Upload, ShieldCheck, ClipboardCheck, CheckCircle2 } from "lucide-react";
 import { SmartButton } from "@/components/ui/SmartButton";
+import { SkeletonText } from "@/components/ui/Skeleton";
 
 type Step = {
   num: string;
@@ -206,11 +207,13 @@ function FinalCard({
   onMaybeLater,
   onStartTrial,
   earlyAccessEligible,
+  loadingMe,
 }: {
   onBack: () => void;
   onMaybeLater: () => Promise<void>;
   onStartTrial: () => Promise<void>;
   earlyAccessEligible: boolean;
+  loadingMe: boolean;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center py-2 text-center">
@@ -226,23 +229,25 @@ function FinalCard({
         cancel anytime before renewal.
       </p>
 
-      {earlyAccessEligible ? (
-        <div className="mb-[14px] inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary-dim px-3 py-1.5 text-[11.5px] font-medium text-primary">
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-          >
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-          </svg>
-          Early Access Rate — $9.99/mo after trial
-        </div>
-      ) : (
-        <div className="mb-[14px] inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11.5px] text-text-muted">
-          Standard Rate — $14.99/mo after trial
-        </div>
-      )}
+      <div className={`mb-[14px] inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] ${earlyAccessEligible ? "border-primary/25 bg-primary-dim font-medium text-primary" : "border-border bg-surface text-text-muted"}`}>
+        {loadingMe ? (
+          <SkeletonText className="h-4 w-48" />
+        ) : earlyAccessEligible ? (
+          <>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+            Early Access Rate — $9.99/mo after trial
+          </>
+        ) : (
+          <>Standard Rate — $14.99/mo after trial</>
+        )}
+      </div>
 
       <div className="flex w-full max-w-[260px] flex-col gap-[9px]">
         <SmartButton
@@ -278,10 +283,12 @@ function FinalCard({
 
 export function OnboardingWizard({
   earlyAccessEligible,
+  loadingMe = false,
   onStartTrial,
   trialLoading,
 }: {
   earlyAccessEligible: boolean;
+  loadingMe?: boolean;
   onStartTrial: () => Promise<void>;
   trialLoading: boolean;
 }) {
@@ -317,6 +324,7 @@ export function OnboardingWizard({
             }}
             onStartTrial={onStartTrial}
             earlyAccessEligible={earlyAccessEligible}
+            loadingMe={loadingMe}
           />
         )}
       </div>
