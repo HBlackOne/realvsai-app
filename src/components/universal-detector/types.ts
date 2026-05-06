@@ -10,10 +10,18 @@ export type GeneratorScore = {
 };
 
 export type ScanResult = {
-  verdict: "AI Generated" | "Authentic" | "Mixed";
+  verdict:
+    | "AI Generated"
+    | "Authentic"
+    | "Mixed"
+    | "AI Generated - Deepfake Detected"
+    | "Authentic - Deepfake Detected"
+    | "Mixed - Deepfake Detected";
   confidence: number;
   aiScore: number;
   humanScore: number;
+  deepfakeScore?: number;
+  speechScore?: number;
   explanation: string;
   generators: GeneratorScore[];
   processingTime: string;

@@ -26,10 +26,118 @@ type HiveAudioChunk = {
   classes?: HiveClass[];
 };
 
-const NON_SOURCE_CLASSES = new Set([
+const NON_GENERATOR_CLASSES = new Set([
   "ai_generated",
   "not_ai_generated",
   "deepfake",
+  "inconclusive",
+  "inconclusive_video",
+  "none",
+  "not_ai_generated_audio",
+  "ai_generated_audio",
+]);
+
+const AUDIO_ONLY_CLASSES = new Set([
+  "not_ai_generated_audio",
+  "ai_generated_audio",
+]);
+
+const VIDEO_GENERATORS = new Set([
+  "ltx",
+  "kling",
+  "sora",
+  "pika",
+  "runway",
+  "luma",
+  "haiper",
+  "hedra",
+  "hailuo",
+  "mochi",
+  "hallo",
+  "hunyuan",
+  "liveportrait",
+  "pyramidflows",
+  "sadtalker",
+  "cogvideos",
+  "aniportrait",
+  "viduq2",
+  "pixverse",
+  "longcat",
+  "steadydancer",
+  "seedance",
+  "seedance2",
+  "flashvideo",
+  "ray3",
+  "veo3",
+  "personalive",
+  "dreamid",
+  "scail",
+  "mcnet",
+  "makeittalk",
+  "vibe",
+  "sora2",
+  "cogview",
+]);
+
+const IMAGE_GENERATORS = new Set([
+  "dalle",
+  "stablediffusion",
+  "midjourney",
+  "flux",
+  "ideogram",
+  "recraft",
+  "leonardo",
+  "sdxlinpaint",
+  "stablediffusioninpaint",
+  "other_image_generators",
+  "bingimagecreator",
+  "krea",
+  "qwen",
+  "zimage",
+  "bria",
+  "blip3o",
+  "ovis",
+  "bagel",
+  "gptimage1_5",
+  "gptimage2",
+  "hidream",
+  "imagen",
+  "adobefirefly",
+  "wuerstchen",
+  "kandinsky",
+  "glide",
+  "gemini",
+  "gemini3",
+  "grokimage",
+  "lucid",
+  "gan",
+  "sana",
+  "wan",
+  "meta",
+  "omnigen",
+  "stablecascade",
+  "stablediffusionxl",
+  "flux2",
+  "4o",
+  "infinity",
+  "moonvalley",
+  "higgsfield",
+  "imaginart",
+  "ernie",
+  "dmd2",
+  "heygen",
+  "emu3",
+  "deepfloyd",
+  "titan",
+  "vqdiffusion",
+  "lcm",
+  "cosmos",
+  "mai",
+  "switti",
+  "sanavideo",
+  "janus",
+  "amused",
+  "transpixar",
 ]);
 
 function normalizeClassName(value: unknown) {
@@ -133,7 +241,7 @@ function resolveVerdict(
 function buildGenerators(classes: HiveClass[]): GeneratorScore[] {
   return classes
     .map((item) => ({ name: getClassName(item), score: getClassScore(item) }))
-    .filter((item) => item.name && !NON_SOURCE_CLASSES.has(item.name))
+    .filter((item) => item.name && !NON_GENERATOR_CLASSES.has(item.name))
     .sort((a, b) => b.score - a.score)
     .slice(0, 5)
     .map((item) => ({ name: item.name, score: item.score }));
@@ -169,7 +277,7 @@ export function parseHiveResponse(
     const chunks = collectAudioChunks(raw);
     const aiScore = chunks.reduce(
       (max, chunk) =>
-        Math.max(max, findClassScore(chunk.classes ?? [], "ai_generated")),
+        Math.max(max, findClassScore(chunk.classes ?? [], "ai_generated_audio")),
       0,
     );
     const humanScore = Math.max(1 - aiScore, 0);
@@ -189,10 +297,25 @@ export function parseHiveResponse(
     };
   }
 
-  const classes = collectTopLevelClasses(raw);
+  let classes = collectTopLevelClasses(raw);
+
+  if (mediaType === "image") {
+    classes = classes.filter((item) => {
+      const name = getClassName(item);
+      return !AUDIO_ONLY_CLASSES.has(name) && !VIDEO_GENERATORS.has(name);
+    });
+  } else if (mediaType === "short_video" || mediaType === "deep_video") {
+    classes = classes.filter((item) => {
+      const name = getClassName(item);
+      return !AUDIO_ONLY_CLASSES.has(name) && !IMAGE_GENERATORS.has(name);
+    });
+  }
+
+  const allClasses = collectTopLevelClasses(raw);
   const aiScore = findClassScore(classes, "ai_generated");
   const humanScore = findClassScore(classes, "not_ai_generated");
   const deepfakeScore = findClassScore(classes, "deepfake");
+  const speechScore = findClassScore(allClasses, "ai_generated_audio");
   const confidence = Math.max(aiScore, humanScore);
   const verdict = resolveVerdict(aiScore, deepfakeScore);
   const generators = buildGenerators(classes);
@@ -202,10 +325,20 @@ export function parseHiveResponse(
     confidence: Math.round(confidence * 100),
     aiScore,
     humanScore,
+    deepfakeScore,
+    speechScore:
+      mediaType === "short_video" || mediaType === "deep_video"
+        ? Math.round(speechScore * 100)
+        : undefined,
     explanation: buildExplanation(verdict, Math.round(confidence * 100)),
     generators,
     processingTime: formatProcessingTime(processingTimeMs),
     creditsUsed,
-    sourceLabel: generators[0]?.name ?? "Unknown",
+    sourceLabel:
+      generators[0]?.name && generators[0].score > 0.01
+        ? generators[0].name
+        : mediaType === "image"
+          ? "Image Analysis"
+          : "Video Analysis",
   };
 }

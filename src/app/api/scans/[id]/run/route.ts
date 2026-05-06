@@ -12,7 +12,7 @@ import {
   ACTIVE_PRICING_MODE,
 } from "@/lib/billing/pricing.constants";
 import { db } from "@/lib/db";
-import type { MediaType } from "@/components/universal-detector/types";
+import { ScanMediaType } from "@prisma/client";
 import type { HiveParseMediaType } from "@/lib/services/hive-parser";
 
 const VALID_MEDIA_TYPES = new Set([
@@ -28,6 +28,12 @@ function computeCacheKey(sourceUrl: string, mediaType: string): string {
   return createHash("sha256")
     .update(`${sourceUrl}:${mediaType}:${ACTIVE_PRICING_MODE}`)
     .digest("hex");
+}
+
+function toScanMediaType(mediaType: ServerMediaType): ScanMediaType {
+  if (mediaType === "image") return ScanMediaType.IMAGE;
+  if (mediaType === "audio") return ScanMediaType.AUDIO;
+  return ScanMediaType.VIDEO;
 }
 
 export async function POST(
@@ -72,7 +78,11 @@ export async function POST(
   const cacheKey = computeCacheKey(sourceUrl, serverMediaType);
 
   const cachedScan = await db.scan.findFirst({
-    where: { cacheKey, status: "COMPLETED" },
+    where: {
+      cacheKey,
+      status: "COMPLETED",
+      mediaType: toScanMediaType(serverMediaType),
+    },
     orderBy: { completedAt: "desc" },
     select: { rawResult: true },
   });
@@ -86,6 +96,7 @@ export async function POST(
   let raw: unknown;
 
   try {
+    console.log("Running Hive scan:", { sourceUrl, serverMediaType });
     raw = await callHiveSync(sourceUrl, serverMediaType);
   } catch (error) {
     if (blobPathname) await deleteBlob(String(blobPathname)).catch(() => {});
