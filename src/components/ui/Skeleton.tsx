@@ -1,21 +1,23 @@
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={`balance-shimmer rounded-md ${className ?? ""}`} />;
+  return (
+    <div className={`animate-pulse rounded-md bg-surface-hover ${className ?? ""}`} />
+  );
 }
 
 export function SkeletonText({ className }: { className?: string }) {
   return (
-    <span className={`balance-shimmer block h-4 w-24 rounded-full ${className ?? ""}`} />
+    <span className={`block h-4 w-24 animate-pulse rounded-full bg-surface-hover ${className ?? ""}`} />
   );
 }
 
 export function SkeletonNumber({ className }: { className?: string }) {
   return (
-    <span className={`balance-shimmer block h-8 w-16 rounded-full ${className ?? ""}`} />
+    <span className={`block h-8 w-16 animate-pulse rounded-full bg-surface-hover ${className ?? ""}`} />
   );
 }
 
 export function SkeletonCard({ className }: { className?: string }) {
   return (
-    <div className={`balance-shimmer h-24 w-full rounded-[18px] ${className ?? ""}`} />
+    <div className={`h-24 w-full animate-pulse rounded-[18px] bg-surface-hover ${className ?? ""}`} />
   );
 }

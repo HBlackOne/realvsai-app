@@ -1,8 +1,13 @@
+"use client";
+
 import { CheckCircle2, Clock3, LoaderCircle, ScanLine, ShieldCheck } from "lucide-react";
-import Link from "next/link";
-import { AppButton, appButtonStyles } from "@/components/app-shell/AppButton";
+import {
+  ScanResultCard,
+  type ScanResult as ScanResultCardData,
+  type Verdict,
+} from "@/components/scan-result/ScanResultCard";
 import ScanUpsellBlock from "./ScanUpsellBlock";
-import { PreviewStat, ScoreBar } from "./shared";
+import { PreviewStat } from "./shared";
 import type { MediaType, ScanResult, ScanStage } from "./types";
 import type { ScanUpsellState } from "./scan-upsell";
 
@@ -48,93 +53,24 @@ export default function ResultPanel({
   }
 
   if (stage === "result" && result) {
-    const verdictTone =
-      result.verdict === "AI Generated"
-        ? "text-danger border-danger/20 bg-danger/10"
-        : result.verdict === "Authentic"
-          ? "text-success border-success/20 bg-success/10"
-          : "text-warning border-warning/20 bg-warning/10";
+    const scanResultCard = toScanResultCardData(result, activeTab);
 
     return (
       <div className="pt-1">
         <div className="rounded-2xl bg-surface p-4">
-          <div className="min-h-[18rem] rounded-2xl border border-border p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="text-base font-semibold text-text">Result ready</h3>
-                <p className="mt-1 truncate text-xs text-text-muted">Source: {result.sourceLabel}</p>
-              </div>
-              <span className={`shrink-0 rounded-full border px-3.5 py-1 text-xs font-medium ${verdictTone}`}>
-                {result.verdict}
-              </span>
+          <ScanResultCard
+            result={scanResultCard}
+            onScanAnother={onReset}
+            onViewHistory={() => {
+              window.location.href = "/history";
+            }}
+            onShowMoreGenerators={() => {}}
+          />
+          {upsell ? (
+            <div className="mx-auto mt-3 max-w-[420px] px-4">
+              <ScanUpsellBlock upsell={upsell} />
             </div>
-
-            <div className="mt-4 grid gap-2.5 sm:grid-cols-[1fr_1fr]">
-              <div className="rounded-xl border border-border px-4 py-3.5">
-                <p className="text-xs text-text-muted">Confidence</p>
-                <div className="mt-2 flex items-end gap-2">
-                  <p className="text-3xl font-semibold text-primary">{result.confidence}%</p>
-                  <span className="pb-1 text-xs text-text-dim">confidence</span>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-hover">
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${result.confidence}%` }} />
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border px-4 py-3.5">
-                <p className="text-xs text-text-muted">Explanation</p>
-                <p className="mt-2 text-sm leading-6 text-text-muted">{result.explanation}</p>
-              </div>
-            </div>
-
-            <div className="mt-3 rounded-xl border border-border px-4 py-3.5">
-              <p className="text-xs text-text-muted">Signal breakdown</p>
-              <div className="mt-3 space-y-3">
-                <ScoreBar label="AI Generated" score={result.aiScore} color="bg-danger" />
-                <ScoreBar label="Authentic" score={result.humanScore} color="bg-success" />
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-              <SummaryChip label="Processing" value={result.processingTime} />
-              <SummaryChip label="Credits used" value={`${result.creditsUsed}`} />
-              <SummaryChip label="Media type" value={activeTab} />
-              <SummaryChip label="Status" value="Completed" />
-            </div>
-
-            <div className="mt-3 rounded-xl border border-border px-4 py-3.5">
-              <p className="text-xs text-text-muted">Generator detection</p>
-              <div className="mt-3 space-y-2.5">
-                {result.generators.map((gen) => (
-                  <div key={gen.name} className="rounded-xl border border-border px-3 py-3">
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="truncate text-text">{gen.name}</span>
-                      <span className="shrink-0 text-text-muted">{(gen.score * 100).toFixed(0)}%</span>
-                    </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-hover">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${gen.score * 100}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {upsell ? <ScanUpsellBlock upsell={upsell} /> : null}
-
-            <div className="mt-4 border-t border-border pt-3.5 space-y-3">
-              <AppButton onClick={onReset} variant="primary" size="lg" fullWidth>
-                Scan another
-              </AppButton>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Link href="/history" className={appButtonStyles({ variant: "secondary", size: "md", fullWidth: true })}>
-                  View history
-                </Link>
-                <AppButton variant="ghost" size="md" fullWidth disabled>
-                  Download (soon)
-                </AppButton>
-              </div>
-            </div>
-          </div>
+          ) : null}
         </div>
       </div>
     );
@@ -159,6 +95,69 @@ export default function ResultPanel({
       </div>
     </div>
   );
+}
+
+function toPercent(score: number | undefined, fallback = 0) {
+  if (typeof score !== "number" || !Number.isFinite(score)) return fallback;
+  return Math.round(Math.max(0, Math.min(1, score)) * 100);
+}
+
+function getResultVerdict(result: ScanResult): Verdict {
+  if (String(result.verdict).startsWith("AI Generated")) return "ai";
+  if (String(result.verdict).startsWith("Authentic")) return "authentic";
+  return "mixed";
+}
+
+function getHeadlinePercent(result: ScanResult, verdict: Verdict) {
+  if (verdict === "ai") return toPercent(result.aiScore, result.confidence);
+  if (verdict === "authentic") return toPercent(result.humanScore, result.confidence);
+  return result.confidence;
+}
+
+function getMediaTypeLabel(activeTab: MediaType) {
+  if (activeTab === "image") return "Image";
+  if (activeTab === "audio") return "Audio";
+  if (activeTab === "video-deep") return "Deep video";
+  return "Video";
+}
+
+function getDeepfakeNote(deepfakePercent: number, activeTab: MediaType) {
+  if (activeTab === "image" || activeTab === "audio") {
+    return "Deepfake analysis applies to video and face manipulation signals.";
+  }
+
+  if (deepfakePercent >= 50) {
+    return "Potential face manipulation signals detected.";
+  }
+
+  return "No significant face manipulation detected.";
+}
+
+function toScanResultCardData(
+  result: ScanResult,
+  activeTab: MediaType,
+): ScanResultCardData {
+  const verdict = getResultVerdict(result);
+  const headlinePercent = getHeadlinePercent(result, verdict);
+  const deepfakePercent = toPercent(result.deepfakeScore);
+  const generators = result.generators.slice(0, 5);
+  const moreGeneratorsCount = Math.max(result.generators.length - generators.length, 0);
+
+  return {
+    verdict,
+    headlinePercent,
+    deepfakePercent,
+    explanation: result.explanation,
+    generators,
+    moreGeneratorsCount,
+    deepfakeNote: getDeepfakeNote(deepfakePercent, activeTab),
+    meta: [
+      { key: "Credits used", value: `${result.creditsUsed} cr` },
+      { key: "Processing", value: result.processingTime },
+      { key: "Media type", value: getMediaTypeLabel(activeTab) },
+      { key: "Status", value: "Completed", success: true },
+    ],
+  };
 }
 
 function SummaryChip({ label, value }: { label: string; value: string }) {

@@ -1421,6 +1421,10 @@ export default function UniversalDetectorPage() {
                         error={stage === "error" ? error || "Scan failed" : null}
                         disabled={isScanLocked || !canScan || !me}
                         className="w-full py-3"
+                        onRetry={() => {
+                          setStage("ready");
+                          setError("");
+                        }}
                         onClick={handleAnalyze}
                       />
                     )}

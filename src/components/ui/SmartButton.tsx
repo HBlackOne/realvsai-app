@@ -20,6 +20,7 @@ type SmartButtonProps = {
   className?: string;
   error?: string | null;
   onClick: () => Promise<void> | void;
+  onRetry?: () => void;
   /** When true, success state persists indefinitely — use for redirect flows */
   persistentSuccess?: boolean;
   /** When false, completing onClick returns the button to idle instead of showing green success. */
@@ -39,13 +40,6 @@ const VARIANT_STYLES: Record<ButtonVariant, string> = {
     "bg-transparent text-text-muted hover:text-text hover:bg-surface2 disabled:opacity-50",
 };
 
-const CONFIRM_STYLES: Record<ButtonVariant, string> = {
-  primary: "bg-primary/60 text-bg",
-  secondary: "bg-surface2 text-text border border-border",
-  danger: "bg-danger/80 text-white",
-  ghost: "bg-transparent text-text-muted border border-border",
-};
-
 export function SmartButton({
   label,
   confirmLabel = "Are you sure? Tap again",
@@ -62,6 +56,7 @@ export function SmartButton({
   className = "",
   error = null,
   onClick,
+  onRetry,
   persistentSuccess = false,
   successOnResolve = true,
 }: SmartButtonProps) {
@@ -135,6 +130,12 @@ export function SmartButton({
   const handleClick = async () => {
     if (disabled || loading || state === "loading") return;
 
+    if (state === "error" || error) {
+      reset();
+      onRetry?.();
+      return;
+    }
+
     if (requiresConfirm && state === "idle") {
       setState("confirming");
       confirmTimerRef.current = setTimeout(reset, 3000);
@@ -178,7 +179,7 @@ export function SmartButton({
   if (isErrorState) {
     buttonClass += " animate-[shake_400ms_ease-in-out] border border-danger bg-danger/20 text-danger";
   } else if (state === "idle" || state === "confirming") {
-    buttonClass += ` ${state === "confirming" ? CONFIRM_STYLES[variant] : VARIANT_STYLES[variant]}`;
+    buttonClass += ` ${VARIANT_STYLES[variant]}`;
   } else if (isSuccessState) {
     buttonClass += " bg-success text-bg cursor-not-allowed";
   } else if (isLoading) {

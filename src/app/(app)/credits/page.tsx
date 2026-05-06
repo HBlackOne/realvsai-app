@@ -393,11 +393,17 @@ function PaymentHistory({ history, loading = false }: { history: PaymentItem[]; 
   return (
     <div className="rounded-[18px] border border-border bg-surface p-5">
       {loading ? (
-        <div className="space-y-2">
+        <div className="space-y-2 p-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-xl bg-bg px-4 py-4">
-              <span className="balance-shimmer block h-4 w-28 rounded-full" />
-              <span className="balance-shimmer mt-2.5 block h-3 w-44 rounded-full" />
+            <div key={i} className="flex items-center justify-between rounded-xl bg-bg p-3">
+              <div className="space-y-2">
+                <div className="h-4 w-28 animate-pulse rounded-full bg-surface-hover" />
+                <div className="h-3 w-36 animate-pulse rounded-full bg-surface-hover" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-12 animate-pulse rounded-full bg-surface-hover" />
+                <div className="h-6 w-16 animate-pulse rounded-full bg-surface-hover" />
+              </div>
             </div>
           ))}
         </div>

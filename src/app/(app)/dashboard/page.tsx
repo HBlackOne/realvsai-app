@@ -54,11 +54,14 @@ function SectionTitle({ children, icon, action }: { children: React.ReactNode; i
 function ShimmerRowsCard() {
   return (
     <section className="rounded-[18px] border border-border/70 bg-surface p-4">
-      <div className="space-y-2">
+      <div className="space-y-2 p-2">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="rounded-xl bg-bg px-4 py-4">
-            <span className="balance-shimmer block h-4 w-28 rounded-full" />
-            <span className="balance-shimmer mt-2.5 block h-3 w-44 rounded-full" />
+          <div key={i} className="flex items-center gap-3 rounded-xl bg-bg p-3">
+            <div className="h-9 w-9 flex-shrink-0 animate-pulse rounded-full bg-surface-hover" />
+            <div className="flex-1 space-y-2">
+              <div className="h-3.5 w-24 animate-pulse rounded-full bg-surface-hover" />
+              <div className="h-3 w-16 animate-pulse rounded-full bg-surface-hover" />
+            </div>
           </div>
         ))}
       </div>
