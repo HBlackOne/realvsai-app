@@ -1,9 +1,10 @@
 import "server-only";
 
-import type { MediaType } from "@/components/universal-detector/types";
-
 const HIVE_SYNC_ENDPOINT = "https://api.thehive.ai/api/v3/hive/ai-generated-and-deepfake-content-detection";
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+
+type HiveRequestMediaType = "image" | "audio" | "short_video" | "deep_video";
+type HiveInputMediaType = "image" | "audio" | "video";
 
 export type HiveRawResponse = unknown;
 
@@ -39,6 +40,12 @@ function shouldRetryWithFallback(status: number) {
   return RETRYABLE_STATUS_CODES.has(status);
 }
 
+function toHiveInputMediaType(mediaType: HiveRequestMediaType): HiveInputMediaType {
+  return mediaType === "short_video" || mediaType === "deep_video"
+    ? "video"
+    : mediaType;
+}
+
 async function callHiveWithKey({
   apiKey,
   blobUrl,
@@ -46,7 +53,7 @@ async function callHiveWithKey({
 }: {
   apiKey: string;
   blobUrl: string;
-  mediaType: MediaType;
+  mediaType: HiveRequestMediaType;
 }) {
   const response = await fetch(HIVE_SYNC_ENDPOINT, {
     method: "POST",
@@ -67,7 +74,7 @@ async function callHiveWithKey({
   return (await response.json()) as HiveRawResponse;
 }
 
-export async function callHiveSync(blobUrl: string, mediaType: MediaType) {
+export async function callHiveSync(blobUrl: string, mediaType: HiveRequestMediaType) {
   const { primary, fallback } = getHiveApiKeys();
 
   try {

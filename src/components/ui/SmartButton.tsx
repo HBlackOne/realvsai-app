@@ -22,6 +22,8 @@ type SmartButtonProps = {
   onClick: () => Promise<void> | void;
   /** When true, success state persists indefinitely — use for redirect flows */
   persistentSuccess?: boolean;
+  /** When false, completing onClick returns the button to idle instead of showing green success. */
+  successOnResolve?: boolean;
 };
 
 type ButtonState = "idle" | "confirming" | "loading" | "success" | "error";
@@ -61,6 +63,7 @@ export function SmartButton({
   error = null,
   onClick,
   persistentSuccess = false,
+  successOnResolve = true,
 }: SmartButtonProps) {
   const [state, setState] = useState<ButtonState>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -147,7 +150,11 @@ export function SmartButton({
     try {
       await onClick();
       if (!successEventName) {
-        showSuccess();
+        if (successOnResolve) {
+          showSuccess();
+        } else {
+          reset();
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong.";

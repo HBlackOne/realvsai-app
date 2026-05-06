@@ -414,44 +414,58 @@ export default function UniversalDetectorPage() {
   );
   const subscriptionPlanId = me?.subscription?.subscriptionPlanId ?? null;
   const activePlan = useMemo(() => {
-    if (!me?.subscription || me.subscription.status !== "ACTIVE") return null;
+    if (
+      !me?.subscription ||
+      (me.subscription.status !== "ACTIVE" &&
+        me.subscription.status !== "ON_TRIAL")
+    ) {
+      return null;
+    }
     if (subscriptionPlanId === "basic") return PLANS.basic;
     if (subscriptionPlanId === "pro_ea") return PLANS.pro_ea;
     if (subscriptionPlanId === "pro_loyalty") return PLANS.pro_loyalty;
     if (subscriptionPlanId === "pro_normal") return PLANS.pro_normal;
     if (subscriptionPlanId === "pro") {
-      if (me.subscription.subscriptionPriceLocked || me.earlyAccessEligible) return PLANS.pro_ea;
-      if (me.subscription.subscriptionPriceCents === PLANS.pro_loyalty.priceCents) return PLANS.pro_loyalty;
+      if (me.subscription.subscriptionPriceLocked || me.earlyAccessEligible) {
+        return PLANS.pro_ea;
+      }
+      if (
+        me.subscription.subscriptionPriceCents === PLANS.pro_loyalty.priceCents
+      ) {
+        return PLANS.pro_loyalty;
+      }
       return PLANS.pro_normal;
     }
     return null;
   }, [me?.earlyAccessEligible, me?.subscription, subscriptionPlanId]);
-  const hasSubscriptionCredits = Boolean(
+  const usesSubscriberRates = Boolean(
     me?.subscription &&
-    (me.subscription.status === "ACTIVE" ||
-      me.subscription.status === "ON_TRIAL") &&
-    me.subscription.subscriptionCreditBalance > 0,
+      (me.subscription.status === "ACTIVE" ||
+        me.subscription.status === "ON_TRIAL"),
+  );
+  const hasSubscriptionCredits = Boolean(
+    usesSubscriberRates && (me?.subscription?.subscriptionCreditBalance ?? 0) > 0,
   );
   const effectiveCosts = useMemo(
     () => ({
       image:
-        activePlan && hasSubscriptionCredits
+        activePlan && usesSubscriberRates
           ? activePlan.imageCost
           : FREE_SCAN_PRICES.image,
       audio:
-        activePlan && hasSubscriptionCredits
+        activePlan && usesSubscriberRates
           ? activePlan.audioCost
           : FREE_SCAN_PRICES.audio,
       video:
-        activePlan && hasSubscriptionCredits
+        activePlan && usesSubscriberRates
           ? activePlan.videoShortCost
           : SCAN_PRICES.video15,
       deepVideo:
-        activePlan && hasSubscriptionCredits && activePlan.deepVideo
+        activePlan && usesSubscriberRates && activePlan.deepVideo
           ? activePlan.deepVideoCost
           : SCAN_PRICES.video60,
     }),
-    [activePlan, hasSubscriptionCredits],
+    [activePlan, usesSubscriberRates],
   );
 
   const resultUpsell = useMemo(
@@ -550,7 +564,26 @@ export default function UniversalDetectorPage() {
     }
   };
 
-  const handleAnalyze = () => {
+  const getCurrentScanMediaType = (): MediaType => {
+    if (inputMode === "upload" && selectedFile) {
+      const detectedType = detectMediaType(selectedFile);
+      if (detectedType === "video" && activeTab === "video-deep") {
+        return "video-deep";
+      }
+      return detectedType ?? activeTab;
+    }
+
+    if (inputMode === "url" && urlPreflight.detectedType) {
+      if (urlPreflight.detectedType === "video" && activeTab === "video-deep") {
+        return "video-deep";
+      }
+      return urlPreflight.detectedType;
+    }
+
+    return activeTab;
+  };
+
+  const handleAnalyze = async () => {
     if (!selectedFile && !videoUrl.trim()) {
       setError("Choose a file or paste a media URL first.");
       setStage("error");
@@ -571,11 +604,15 @@ export default function UniversalDetectorPage() {
       return;
     }
     setError("");
-    void handleConfirm();
+    await handleConfirm();
   };
 
   const handleConfirm = async () => {
-    const serverMediaType = toServerMediaType(activeTab);
+    const scanMediaType = getCurrentScanMediaType();
+    const serverMediaType = toServerMediaType(scanMediaType);
+    if (scanMediaType !== activeTab) {
+      setActiveTab(scanMediaType);
+    }
     let newScanId: string | null = null;
 
     setError("");
@@ -657,7 +694,7 @@ export default function UniversalDetectorPage() {
 
       if (!selectedFile) return;
 
-      const sourceLabel = selectedFile.name || `${activeTab} input`;
+      const sourceLabel = selectedFile.name || `${scanMediaType} input`;
 
       setStage("uploading");
 
@@ -1377,8 +1414,8 @@ export default function UniversalDetectorPage() {
                         label={`Run scan — ${effectiveActiveCost} cr`}
                         confirmLabel={`Confirm? ${effectiveActiveCost} cr will be used · Tap again`}
                         loadingLabel={stage === "uploading" ? "Uploading..." : "Analyzing..."}
-                        successLabel="Scan complete"
                         errorLabel="Scan failed · Tap to retry"
+                        successOnResolve={false}
                         requiresConfirm
                         loading={stage === "uploading" || stage === "scanning"}
                         error={stage === "error" ? error || "Scan failed" : null}

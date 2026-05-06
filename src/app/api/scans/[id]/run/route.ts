@@ -86,7 +86,7 @@ export async function POST(
   let raw: unknown;
 
   try {
-    raw = await callHiveSync(sourceUrl, serverMediaType as MediaType);
+    raw = await callHiveSync(sourceUrl, serverMediaType);
   } catch (error) {
     if (blobPathname) await deleteBlob(String(blobPathname)).catch(() => {});
 
