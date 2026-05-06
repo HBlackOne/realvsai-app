@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { deleteBlob } from "@/lib/services/blob";
 import { callHiveSync } from "@/lib/services/hive";
 import { parseHiveResponse } from "@/lib/services/hive-parser";
-import { completeScanRecord, failScanRecord } from "@/lib/services/scans";
+import { failScanRecord } from "@/lib/services/scans";
 import {
   SCAN_PRICES,
   ACTIVE_PRICING_MODE,
@@ -22,9 +22,11 @@ const VALID_MEDIA_TYPES = new Set([
   "deep_video",
 ]);
 
-function computeCacheKey(blobUrl: string, mediaType: string): string {
+type ServerMediaType = "image" | "audio" | "short_video" | "deep_video";
+
+function computeCacheKey(sourceUrl: string, mediaType: string): string {
   return createHash("sha256")
-    .update(`${blobUrl}:${mediaType}:${ACTIVE_PRICING_MODE}`)
+    .update(`${sourceUrl}:${mediaType}:${ACTIVE_PRICING_MODE}`)
     .digest("hex");
 }
 
@@ -50,23 +52,25 @@ export async function POST(
 
   const { blobUrl, blobPathname, mediaType } = body;
 
-  if (!blobUrl || !blobPathname || !mediaType) {
-    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-  }
-
   if (typeof mediaType !== "string" || !VALID_MEDIA_TYPES.has(mediaType)) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
   const scan = await db.scan.findUnique({ where: { id } });
+  const dbUser = await db.user.findFirst({ where: { clerkUserId: userId } });
 
-  if (!scan || scan.userId !== userId) {
+  if (!scan || !dbUser || scan.userId !== dbUser.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const cacheKey = computeCacheKey(String(blobUrl), mediaType);
+  const sourceUrl = blobUrl ? String(blobUrl) : scan.sourceUrl;
+  if (!sourceUrl) {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
 
-  // Step D: cache check before Hive call
+  const serverMediaType = mediaType as ServerMediaType;
+  const cacheKey = computeCacheKey(sourceUrl, serverMediaType);
+
   const cachedScan = await db.scan.findFirst({
     where: { cacheKey, status: "COMPLETED" },
     orderBy: { completedAt: "desc" },
@@ -74,19 +78,17 @@ export async function POST(
   });
 
   if (cachedScan?.rawResult) {
-    // Cache hit — write cacheKey on current scan and return cached result
     await db.scan.update({ where: { id }, data: { cacheKey } });
     return NextResponse.json({ result: cachedScan.rawResult });
   }
 
-  // Cache miss — call Hive
   const startTime = Date.now();
   let raw: unknown;
 
   try {
-    raw = await callHiveSync(String(blobUrl), mediaType as MediaType);
+    raw = await callHiveSync(sourceUrl, serverMediaType as MediaType);
   } catch (error) {
-    await deleteBlob(String(blobPathname)).catch(() => {});
+    if (blobPathname) await deleteBlob(String(blobPathname)).catch(() => {});
 
     if (error instanceof Error && error.name === "ScanRateLimitError") {
       await failScanRecord({ scanId: id, errorMessage: "Rate limit reached." });
@@ -100,27 +102,26 @@ export async function POST(
     return NextResponse.json({ error: "Scan failed." }, { status: 500 });
   }
 
-  await deleteBlob(String(blobPathname)).catch(() => {});
+  if (blobPathname) await deleteBlob(String(blobPathname)).catch(() => {});
 
   const processingTimeMs = Date.now() - startTime;
 
   const creditsUsed =
-    mediaType === "image"
+    serverMediaType === "image"
       ? SCAN_PRICES.image
-      : mediaType === "audio"
+      : serverMediaType === "audio"
         ? SCAN_PRICES.audio
-        : mediaType === "short_video"
+        : serverMediaType === "short_video"
           ? SCAN_PRICES.video15
           : SCAN_PRICES.video60;
 
   const result = parseHiveResponse(
     raw,
-    mediaType as HiveParseMediaType,
+    serverMediaType as HiveParseMediaType,
     processingTimeMs,
     creditsUsed,
   );
 
-  // Step D: store cacheKey on successful Hive response
   await db.scan.update({ where: { id }, data: { cacheKey } });
 
   return NextResponse.json({ result });

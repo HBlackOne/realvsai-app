@@ -13,6 +13,14 @@ import type {
   VideoSource,
 } from "@/components/universal-detector/types";
 
+function normalizeMediaType(mediaType: unknown): MediaType | null {
+  if (mediaType === "image") return "image";
+  if (mediaType === "audio") return "audio";
+  if (mediaType === "video" || mediaType === "short_video") return "video";
+  if (mediaType === "video-deep" || mediaType === "deep_video") return "video-deep";
+  return null;
+}
+
 function getServerScanCost(mediaType: MediaType) {
   if (mediaType === "image") return SCAN_PRICES.image;
   if (mediaType === "audio") return SCAN_PRICES.audio;
@@ -75,7 +83,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const mediaType = body?.mediaType as MediaType | undefined;
+    const mediaType = normalizeMediaType(body?.mediaType);
     const videoSource = body?.videoSource as VideoSource | undefined;
     const sourceLabel =
       typeof body?.sourceLabel === "string" ? body.sourceLabel.trim() : "";
@@ -86,10 +94,7 @@ export async function POST(request: Request) {
         ? body.originalFilename.trim()
         : undefined;
 
-    if (
-      !mediaType ||
-      !["image", "video", "audio", "video-deep"].includes(mediaType)
-    ) {
+    if (!mediaType) {
       return NextResponse.json(
         { success: false, error: "Invalid media type." },
         { status: 400 },

@@ -1,40 +1,34 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
-  ArrowRight,
   CheckCircle2,
   FileAudio2,
-  FileImage,
   Film,
   Link2,
-  ShieldCheck,
-  Sparkles,
   Upload,
   X,
 } from "lucide-react";
 import { useAppMe } from "@/hooks/use-app-me";
-import ConfirmModal from "@/components/universal-detector/ConfirmModal";
 import { TABS } from "@/components/universal-detector/data";
 import ResultPanel from "@/components/universal-detector/ResultPanel";
 import { getScanUpsellState } from "@/components/universal-detector/scan-upsell";
-import UpgradePromptModal from "@/components/universal-detector/UpgradePromptModal";
 import type {
   MediaType,
   ScanResult,
   ScanStage,
 } from "@/components/universal-detector/types";
 import { AppButton } from "@/components/app-shell/AppButton";
+import { SmartButton } from "@/components/ui/SmartButton";
 import {
   AppPage,
   AppPageHeader,
   AppSectionHeader,
 } from "@/components/app-shell/AppPage";
 import { formatBytes } from "@/components/universal-detector/utils";
-import {
-  EARLY_ACCESS_PLANS,
-  SCAN_PRICES,
-} from "@/lib/billing/pricing.constants";
+import { PLANS } from "@/lib/billing/plans";
+import { FREE_SCAN_PRICES, SCAN_PRICES } from "@/lib/billing/pricing.constants";
 
 const FILE_ACCEPT =
   "image/png,image/jpeg,image/webp,audio/mp3,audio/wav,audio/m4a,audio/mpeg,video/mp4,video/quicktime,video/webm";
@@ -65,7 +59,7 @@ const SCAN_LIMITS = {
     ],
   },
   video: {
-    maxSizeMb: 200,
+    maxSizeMb: 100,
     maxDurationSec: 900,
     accepts: ["video/mp4", "video/quicktime", "video/webm"],
   },
@@ -85,6 +79,21 @@ type PreviewState = {
 
 function getBaseMediaType(type: MediaType): BaseMediaType {
   return type === "video-deep" ? "video" : type;
+}
+
+function toServerMediaType(type: MediaType): string {
+  switch (type) {
+    case "image":
+      return "image";
+    case "audio":
+      return "audio";
+    case "video":
+      return "short_video";
+    case "video-deep":
+      return "deep_video";
+    default:
+      return "image";
+  }
 }
 
 function detectMediaType(file: File): BaseMediaType | null {
@@ -364,7 +373,6 @@ export default function UniversalDetectorPage() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
   const [scanId, setScanId] = useState<string | null>(null);
-  const [upgradeRequired, setUpgradeRequired] = useState(false);
   const [isPreparingFile, setIsPreparingFile] = useState(false);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [inputMode, setInputMode] = useState<"upload" | "url">("upload");
@@ -404,12 +412,20 @@ export default function UniversalDetectorPage() {
     () => TABS.find((tab) => tab.type === activeTab) ?? TABS[0],
     [activeTab],
   );
-  const subscriptionPlanId = me?.subscription?.subscriptionPlanId as
-    | keyof typeof EARLY_ACCESS_PLANS
-    | null;
-  const activePlan = subscriptionPlanId
-    ? EARLY_ACCESS_PLANS[subscriptionPlanId]
-    : null;
+  const subscriptionPlanId = me?.subscription?.subscriptionPlanId ?? null;
+  const activePlan = useMemo(() => {
+    if (!me?.subscription || me.subscription.status !== "ACTIVE") return null;
+    if (subscriptionPlanId === "basic") return PLANS.basic;
+    if (subscriptionPlanId === "pro_ea") return PLANS.pro_ea;
+    if (subscriptionPlanId === "pro_loyalty") return PLANS.pro_loyalty;
+    if (subscriptionPlanId === "pro_normal") return PLANS.pro_normal;
+    if (subscriptionPlanId === "pro") {
+      if (me.subscription.subscriptionPriceLocked || me.earlyAccessEligible) return PLANS.pro_ea;
+      if (me.subscription.subscriptionPriceCents === PLANS.pro_loyalty.priceCents) return PLANS.pro_loyalty;
+      return PLANS.pro_normal;
+    }
+    return null;
+  }, [me?.earlyAccessEligible, me?.subscription, subscriptionPlanId]);
   const hasSubscriptionCredits = Boolean(
     me?.subscription &&
     (me.subscription.status === "ACTIVE" ||
@@ -421,17 +437,17 @@ export default function UniversalDetectorPage() {
       image:
         activePlan && hasSubscriptionCredits
           ? activePlan.imageCost
-          : SCAN_PRICES.image,
+          : FREE_SCAN_PRICES.image,
       audio:
         activePlan && hasSubscriptionCredits
           ? activePlan.audioCost
-          : SCAN_PRICES.audio,
+          : FREE_SCAN_PRICES.audio,
       video:
         activePlan && hasSubscriptionCredits
           ? activePlan.videoShortCost
           : SCAN_PRICES.video15,
       deepVideo:
-        activePlan && hasSubscriptionCredits
+        activePlan && hasSubscriptionCredits && activePlan.deepVideo
           ? activePlan.deepVideoCost
           : SCAN_PRICES.video60,
     }),
@@ -450,11 +466,13 @@ export default function UniversalDetectorPage() {
 
   const hasUrlInput = Boolean(videoUrl.trim());
   const hasInput = Boolean(selectedFile || hasUrlInput);
+  const userCanDeepVideo = Boolean(activePlan?.deepVideo);
   const isScanLocked =
-    stage === "confirm" || stage === "scanning" || isPreparingFile;
+    stage === "confirm" || stage === "uploading" || stage === "scanning" || isPreparingFile;
   const isUploadedState =
     stage === "ready" ||
     stage === "confirm" ||
+    stage === "uploading" ||
     stage === "scanning" ||
     stage === "result" ||
     stage === "error";
@@ -546,32 +564,106 @@ export default function UniversalDetectorPage() {
       setStage("error");
       return;
     }
-    if (activeTab === "video-deep" && !isPaidUser) {
-      setUpgradeRequired(true);
+    if (activeTab === "video-deep" && !userCanDeepVideo) {
       return;
     }
-    if (spendableBalance < effectiveActiveCost) {
-      setError("Not enough balance for this scan.");
-      setStage("error");
+    if (!hasEnoughCredits) {
       return;
     }
     setError("");
-    setStage("confirm");
+    void handleConfirm();
   };
 
   const handleConfirm = async () => {
-    if (!selectedFile) return;
+    const serverMediaType = toServerMediaType(activeTab);
+    let newScanId: string | null = null;
 
-    const sourceLabel = selectedFile.name || `${activeTab} input`;
-
-    setStage("scanning");
     setError("");
 
     try {
-      // 1. Upload file
+      if (inputMode === "url" && videoUrl.trim()) {
+        const sourceUrl = urlPreflight.resolvedUrl || videoUrl.trim();
+        const sourceLabel =
+          urlPreflight.previewTitle ||
+          urlPreflight.previewSiteName ||
+          sourceUrl;
+
+        setStage("scanning");
+
+        const createRes = await fetch("/api/scans", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mediaType: serverMediaType,
+            videoSource: "url",
+            sourceLabel,
+            sourceUrl,
+          }),
+        });
+        const createPayload = await createRes.json();
+
+        if (
+          !createRes.ok ||
+          !createPayload?.success ||
+          !createPayload?.data?.scanId
+        ) {
+          throw new Error(
+            createPayload?.error || "Failed to create scan record.",
+          );
+        }
+
+        newScanId = String(createPayload.data.scanId);
+        setScanId(newScanId);
+
+        const runRes = await fetch(`/api/scans/${newScanId}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mediaType: serverMediaType }),
+        });
+
+        if (runRes.status === 429) {
+          throw new Error("Scan limit reached. Please try again later.");
+        }
+
+        if (!runRes.ok) {
+          const errPayload = await runRes.json().catch(() => ({}));
+          throw new Error(errPayload?.error || "Scan failed. Please try again.");
+        }
+
+        const runPayload = await runRes.json();
+        const scanResult = runPayload?.result;
+        if (!scanResult) {
+          throw new Error("Scan failed. Please try again.");
+        }
+
+        const completeRes = await fetch(`/api/scans/${newScanId}/complete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ result: scanResult }),
+        });
+        const completePayload = await completeRes.json();
+
+        if (!completeRes.ok || !completePayload?.success) {
+          throw new Error(
+            completePayload?.error || "Failed to complete scan record.",
+          );
+        }
+
+        await refresh();
+        setResult(scanResult);
+        setStage("result");
+        return;
+      }
+
+      if (!selectedFile) return;
+
+      const sourceLabel = selectedFile.name || `${activeTab} input`;
+
+      setStage("uploading");
+
       const uploadForm = new FormData();
       uploadForm.append("file", selectedFile);
-      uploadForm.append("mediaType", activeTab);
+      uploadForm.append("mediaType", serverMediaType);
 
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
@@ -584,19 +676,21 @@ export default function UniversalDetectorPage() {
         !uploadPayload?.blobUrl ||
         !uploadPayload?.blobPathname
       ) {
-        throw new Error(uploadPayload?.error || "Upload failed.");
+        throw new Error(uploadPayload?.error || "Upload failed. Please try again.");
       }
 
       const { blobUrl, blobPathname } = uploadPayload;
 
-      // 2. Create scan record
+      setStage("scanning");
+
       const createRes = await fetch("/api/scans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mediaType: activeTab,
+          mediaType: serverMediaType,
           videoSource: "file",
           sourceLabel,
+          sourceUrl: blobUrl,
           originalFilename: selectedFile.name,
         }),
       });
@@ -612,19 +706,17 @@ export default function UniversalDetectorPage() {
         );
       }
 
-      const newScanId = String(createPayload.data.scanId);
+      newScanId = String(createPayload.data.scanId);
+      setScanId(newScanId);
 
-      // 3. Run scan
       const runRes = await fetch(`/api/scans/${newScanId}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blobUrl, blobPathname, mediaType: activeTab }),
+        body: JSON.stringify({ blobUrl, blobPathname, mediaType: serverMediaType }),
       });
 
       if (runRes.status === 429) {
-        setError("Scan limit reached. Please try again later.");
-        setStage("error");
-        return;
+        throw new Error("Scan limit reached. Please try again later.");
       }
 
       if (!runRes.ok) {
@@ -638,7 +730,6 @@ export default function UniversalDetectorPage() {
         throw new Error("Scan failed. Please try again.");
       }
 
-      // 4. Complete scan record
       const completeRes = await fetch(`/api/scans/${newScanId}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -658,6 +749,15 @@ export default function UniversalDetectorPage() {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Scan failed. Please try again.";
+
+      if (newScanId) {
+        await fetch(`/api/scans/${newScanId}/complete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ errorMessage: message }),
+        }).catch(() => {});
+      }
+
       setError(message);
       setStage("error");
     }
@@ -773,6 +873,7 @@ export default function UniversalDetectorPage() {
         : activeTab === "video"
           ? effectiveCosts.video
           : effectiveCosts.deepVideo;
+  const hasEnoughCredits = spendableBalance >= effectiveActiveCost;
   const currentDeepVideoCount =
     me?.subscription?.subscriptionDeepVideoCount ?? 0;
   const deepVideoState = useMemo(() => {
@@ -785,15 +886,15 @@ export default function UniversalDetectorPage() {
       };
     }
 
-    if (activePlan && hasSubscriptionCredits) {
+    if (activePlan && activePlan.deepVideo && hasSubscriptionCredits) {
       const remaining = Math.max(
-        activePlan.deepVideoMonthlyLimit - currentDeepVideoCount,
+        activePlan.deepVideoMonthly - currentDeepVideoCount,
         0,
       );
       return {
         title: "Deep Video",
         description: `${activePlan.name} plan deep scan pricing applies.`,
-        availability: `${remaining}/${activePlan.deepVideoMonthlyLimit} monthly deep scans left`,
+        availability: `${remaining}/${activePlan.deepVideoMonthly} monthly deep scans left`,
         available: remaining > 0,
       };
     }
@@ -809,7 +910,7 @@ export default function UniversalDetectorPage() {
 
     return {
       title: "Deep Video",
-      description: "Requires a paid upgrade.",
+      description: "Requires Pro plan.",
       availability: "Upgrade required",
       available: false,
     };
@@ -994,32 +1095,24 @@ export default function UniversalDetectorPage() {
 
                             <button
                               onClick={() => {
-                                if (
-                                  !deepVideoState.available &&
-                                  !(activePlan && hasSubscriptionCredits)
-                                ) {
-                                  setUpgradeRequired(true);
-                                  return;
-                                }
+                                if (!userCanDeepVideo) return;
                                 if (
                                   activePlan &&
+                                  activePlan.deepVideo &&
                                   hasSubscriptionCredits &&
                                   currentDeepVideoCount >=
-                                    activePlan.deepVideoMonthlyLimit
+                                    activePlan.deepVideoMonthly
                                 ) {
-                                  return;
-                                }
-                                if (!activePlan && !me?.trial?.isPaidUser) {
-                                  setUpgradeRequired(true);
                                   return;
                                 }
                                 setActiveTab("video-deep");
                               }}
                               disabled={
                                 isScanLocked ||
-                                (activePlan && hasSubscriptionCredits
+                                !userCanDeepVideo ||
+                                (activePlan && activePlan.deepVideo && hasSubscriptionCredits
                                   ? currentDeepVideoCount >=
-                                    activePlan.deepVideoMonthlyLimit
+                                    activePlan.deepVideoMonthly
                                   : false)
                               }
                               className={`rounded-[16px] border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${activeTab === "video-deep" ? "border-primary/20 bg-primary-dim" : "border-border-subtle bg-surface hover:bg-surface-hover"}`}
@@ -1143,7 +1236,11 @@ export default function UniversalDetectorPage() {
                               {item.label}
                             </div>
                             <div className="mt-0.5 text-[11px] text-text-dim">
-                              {itemCost} credits
+                              {!me && item.type !== "video" ? (
+                                <span className="balance-shimmer block h-3 w-12 rounded-full" />
+                              ) : (
+                                <span>{itemCost} credits</span>
+                              )}
                             </div>
                           </button>
                         );
@@ -1177,32 +1274,24 @@ export default function UniversalDetectorPage() {
 
                       <button
                         onClick={() => {
-                          if (
-                            !deepVideoState.available &&
-                            !(activePlan && hasSubscriptionCredits)
-                          ) {
-                            setUpgradeRequired(true);
-                            return;
-                          }
+                          if (!userCanDeepVideo) return;
                           if (
                             activePlan &&
+                            activePlan.deepVideo &&
                             hasSubscriptionCredits &&
                             currentDeepVideoCount >=
-                              activePlan.deepVideoMonthlyLimit
+                              activePlan.deepVideoMonthly
                           ) {
-                            return;
-                          }
-                          if (!activePlan && !me?.trial?.isPaidUser) {
-                            setUpgradeRequired(true);
                             return;
                           }
                           setActiveTab("video-deep");
                         }}
                         disabled={
                           isScanLocked ||
-                          (activePlan && hasSubscriptionCredits
+                          !userCanDeepVideo ||
+                          (activePlan && activePlan.deepVideo && hasSubscriptionCredits
                             ? currentDeepVideoCount >=
-                              activePlan.deepVideoMonthlyLimit
+                              activePlan.deepVideoMonthly
                             : false)
                         }
                         className={`rounded-[16px] border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${activeTab === "video-deep" ? "border-primary/20 bg-primary-dim" : "border-border-subtle bg-surface hover:bg-surface-hover"}`}
@@ -1239,34 +1328,77 @@ export default function UniversalDetectorPage() {
 
                 {hasInput ? (
                   <>
-                    <div className="text-sm text-text-muted">
-                      <span>Available: {spendableBalance}</span>
+                    <div className="flex items-center text-sm text-text-muted">
+                      {!me ? (
+                        <span className="balance-shimmer block h-4 w-20 rounded-full" />
+                      ) : (
+                        <span>Available: {spendableBalance.toLocaleString()}</span>
+                      )}
                       <span className="px-2 text-text-dim">•</span>
-                      <span>Cost: {effectiveActiveCost} credits</span>
+                      {!me ? (
+                        <span className="balance-shimmer block h-4 w-16 rounded-full" />
+                      ) : (
+                        <span>Cost: {effectiveActiveCost} credits</span>
+                      )}
                     </div>
-                    <div className="space-y-3">
-                      <AppButton
+
+                    {activeTab === "video-deep" && !userCanDeepVideo ? (
+                      <div className="rounded-[12px] border border-border bg-surface2 p-4 text-center">
+                        <p className="text-[13px] font-semibold text-text">
+                          Deep Video requires Pro plan
+                        </p>
+                        <p className="mt-1 text-[11px] text-text-dim">
+                          15 deep video scans per month included
+                        </p>
+                        <Link
+                          href="/subscription"
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1.5 text-[11px] font-semibold text-primary"
+                        >
+                          Upgrade to Pro →
+                        </Link>
+                      </div>
+                    ) : !hasEnoughCredits && me ? (
+                      <div className="rounded-[12px] border border-warning/30 bg-warning/10 p-3 text-center">
+                        <p className="text-[12px] font-semibold text-warning">
+                          Not enough credits
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-text-dim">
+                          You need {effectiveActiveCost} cr · You have {spendableBalance} cr
+                        </p>
+                        <Link
+                          href="/credits"
+                          className="mt-2 inline-flex items-center gap-1 rounded-full bg-primary/15 px-3 py-1.5 text-[11px] font-semibold text-primary"
+                        >
+                          Top up wallet →
+                        </Link>
+                      </div>
+                    ) : (
+                      <SmartButton
+                        label={`Run scan — ${effectiveActiveCost} cr`}
+                        confirmLabel={`Confirm? ${effectiveActiveCost} cr will be used · Tap again`}
+                        loadingLabel={stage === "uploading" ? "Uploading..." : "Analyzing..."}
+                        successLabel="Scan complete"
+                        errorLabel="Scan failed · Tap to retry"
+                        requiresConfirm
+                        loading={stage === "uploading" || stage === "scanning"}
+                        error={stage === "error" ? error || "Scan failed" : null}
+                        disabled={isScanLocked || !canScan || !me}
+                        className="w-full py-3"
                         onClick={handleAnalyze}
-                        disabled={isScanLocked || !canScan}
-                        variant="primary"
-                        size="lg"
+                      />
+                    )}
+
+                    {isUploadedState ? (
+                      <AppButton
+                        onClick={handleClear}
+                        disabled={isScanLocked}
+                        variant="ghost"
+                        size="md"
                         fullWidth
                       >
-                        Run scan <ArrowRight className="h-4 w-4" />
+                        Clear and start over
                       </AppButton>
-
-                      {isUploadedState ? (
-                        <AppButton
-                          onClick={handleClear}
-                          disabled={isScanLocked}
-                          variant="ghost"
-                          size="md"
-                          fullWidth
-                        >
-                          Clear and start over
-                        </AppButton>
-                      ) : null}
-                    </div>
+                    ) : null}
                   </>
                 ) : null}
               </div>
@@ -1289,19 +1421,6 @@ export default function UniversalDetectorPage() {
         </div>
       </section>
 
-      {stage === "confirm" && (
-        <ConfirmModal
-          title={`Analyze ${activeConfig.label}`}
-          cost={effectiveActiveCost}
-          balance={spendableBalance}
-          onClose={() => setStage("ready")}
-          onConfirm={handleConfirm}
-        />
-      )}
-
-      {upgradeRequired && (
-        <UpgradePromptModal onClose={() => setUpgradeRequired(false)} />
-      )}
     </AppPage>
   );
 }

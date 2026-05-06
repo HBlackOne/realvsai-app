@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { db } from "@/lib/db";
+import { createAppMessage } from "@/lib/services/messages";
 import { completeScanRecord, failScanRecord } from "@/lib/services/scans";
 import type { ScanResult } from "@/components/universal-detector/types";
 
@@ -12,10 +14,31 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     const { id } = await context.params;
+    const [scan, dbUser] = await Promise.all([
+      db.scan.findUnique({ where: { id } }),
+      db.user.findFirst({ where: { clerkUserId: userId } }),
+    ]);
+
+    if (!scan || !dbUser || scan.userId !== dbUser.id) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
 
     if (body?.errorMessage) {
       await failScanRecord({ scanId: id, errorMessage: String(body.errorMessage) });
+      await createAppMessage({
+        userId: dbUser.id,
+        type: "scan_failed",
+        title: "Scan failed",
+        body: `${scan.mediaType.toLowerCase()} scan failed · No credits deducted`,
+        dedupeKey: `scan_failed:${scan.id}`,
+        metadata: {
+          scanId: scan.id,
+          mediaType: scan.mediaType,
+          reason: String(body.errorMessage),
+        },
+      });
       return NextResponse.json({ success: true });
     }
 
@@ -26,6 +49,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     await completeScanRecord({ scanId: id, result });
+    await createAppMessage({
+      userId: dbUser.id,
+      type: "scan_complete",
+      title: "Scan completed",
+      body: `${scan.mediaType.toLowerCase()} scan · ${scan.costCredits} credits deducted`,
+      dedupeKey: `scan_complete:${scan.id}`,
+      metadata: {
+        scanId: scan.id,
+        mediaType: scan.mediaType,
+        costCredits: scan.costCredits,
+        verdict: result.verdict,
+        confidence: result.confidence,
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

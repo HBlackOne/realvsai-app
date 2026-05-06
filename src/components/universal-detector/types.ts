@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
 export type MediaType = "image" | "video" | "audio" | "video-deep";
-export type ScanStage = "idle" | "ready" | "confirm" | "scanning" | "result" | "error";
+export type ScanStage = "idle" | "ready" | "confirm" | "uploading" | "scanning" | "result" | "error";
 export type VideoSource = "url" | "file";
 
 export type GeneratorScore = {

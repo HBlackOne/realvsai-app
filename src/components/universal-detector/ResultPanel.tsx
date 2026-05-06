@@ -19,17 +19,20 @@ export default function ResultPanel({
   upsell: ScanUpsellState | null;
   onReset: () => void;
 }) {
-  if (stage === "scanning") {
+  if (stage === "uploading" || stage === "scanning") {
+    const title = stage === "uploading" ? "Uploading file..." : "Analyzing with AI...";
+    const description = stage === "uploading" ? "Securely preparing your media..." : "Building authenticity signals...";
+
     return (
       <div className="pt-1">
         <div className="rounded-2xl bg-surface p-4">
           <div className="min-h-[18rem] rounded-2xl border border-border p-5 text-center sm:p-6">
             <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-primary" />
-            <h3 className="mt-4 text-base font-semibold text-text">Analyzing...</h3>
-            <p className="mt-2 text-sm text-text-muted">Building authenticity signals...</p>
+            <h3 className="mt-4 text-base font-semibold text-text">{title}</h3>
+            <p className="mt-2 text-sm text-text-muted">{description}</p>
 
             <div className="mt-5 grid gap-2 sm:grid-cols-3">
-              <SummaryChip label="Stage" value="Processing" />
+              <SummaryChip label="Stage" value={stage === "uploading" ? "Uploading" : "Processing"} />
               <SummaryChip label="Checks" value="Authenticity" />
               <SummaryChip label="Time" value="5–20 sec" />
             </div>
