@@ -29,9 +29,6 @@ import type {
   VideoSource,
 } from "@/components/universal-detector/types";
 
-const DAILY_SHORT_VIDEO_SCAN_LIMIT = 10;
-const DAILY_DEEP_VIDEO_SCAN_LIMIT = 5;
-
 export type TrialBlockReason =
   | "daily_limit_reached"
   | "trial_limit_reached"
@@ -275,19 +272,17 @@ async function validateDailyVideoCap({
     where: { userId },
     select: { status: true, subscriptionPlanId: true },
   });
+  const isTrial = subscription?.status === "ON_TRIAL";
   const isProLevel =
-    subscription?.status === "ON_TRIAL" ||
-    (subscription?.status === "ACTIVE" &&
-      subscription?.subscriptionPlanId === "pro");
-  const isTrial =
-    subscription?.status === "ON_TRIAL";
+    subscription?.status === "ACTIVE" &&
+    subscription?.subscriptionPlanId === "pro";
 
   // Global daily cap by user tier
   let globalDailyLimit: number;
-  if (isProLevel) {
-    globalDailyLimit = PROTECTION_LIMITS.maxTotalScansPerDayPro;
-  } else if (isTrial) {
+  if (isTrial) {
     globalDailyLimit = PROTECTION_LIMITS.maxTotalScansPerDayTrial;
+  } else if (isProLevel) {
+    globalDailyLimit = PROTECTION_LIMITS.maxTotalScansPerDayPro;
   } else if (
     subscription?.status === "ACTIVE" &&
     subscription?.subscriptionPlanId === "basic"
@@ -302,7 +297,7 @@ async function validateDailyVideoCap({
     where: {
       userId,
       createdAt: { gte: since },
-      status: { notIn: [ScanStatus.FAILED, ScanStatus.CANCELED] },
+      status: ScanStatus.COMPLETED,
     },
   });
 
@@ -353,14 +348,14 @@ async function validateDailyVideoCap({
     );
     const deepVideoDailyLimit = hardStopActive
       ? PROTECTION_LIMITS.hardStopDeepScansPerDay
-      : DAILY_DEEP_VIDEO_SCAN_LIMIT;
+      : PROTECTION_LIMITS.maxDeepScansPerDay;
 
     const todayDeepVideoCount = await db.scan.count({
       where: {
         userId,
         mediaType: ScanMediaType.VIDEO,
         createdAt: { gte: since },
-        status: { notIn: [ScanStatus.FAILED, ScanStatus.CANCELED] },
+        status: ScanStatus.COMPLETED,
         OR: [
           { isDeepVideo: true },
           {
@@ -391,7 +386,7 @@ async function validateDailyVideoCap({
       userId,
       mediaType: ScanMediaType.VIDEO,
       createdAt: { gte: since },
-      status: { notIn: [ScanStatus.FAILED, ScanStatus.CANCELED] },
+      status: ScanStatus.COMPLETED,
       isDeepVideo: false,
       costCredits: {
         notIn: Array.from(
@@ -405,7 +400,7 @@ async function validateDailyVideoCap({
     },
   });
 
-  if (todayShortVideoCount >= DAILY_SHORT_VIDEO_SCAN_LIMIT) {
+  if (todayShortVideoCount >= PROTECTION_LIMITS.maxShortVideoScansPerDay) {
     return { allowed: false, reason: "daily_short_video_limit_reached" };
   }
 
@@ -531,7 +526,7 @@ export async function validateTrialScan({
           where: {
             userId,
             mediaType: ScanMediaType.AUDIO,
-            status: { notIn: [ScanStatus.FAILED, ScanStatus.CANCELED] },
+            status: ScanStatus.COMPLETED,
             createdAt: { gte: getThisMonthStart() },
           },
         });

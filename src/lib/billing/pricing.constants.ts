@@ -301,7 +301,7 @@ export const PROTECTION_LIMITS = {
   maxTotalScansPerDayTrial: 5,
   maxTotalScansPerDayWallet: 5,
   maxTotalScansPerDayBasic: 10,
-  maxTotalScansPerDayPro: 20,
+  maxTotalScansPerDayPro: 10,
   maxDeepScansPerMonthEarlyAccessPro: 15,
   maxDeepScansPerMonthNormalPro: 15,
   maxAudioScansPerMonth: 15,

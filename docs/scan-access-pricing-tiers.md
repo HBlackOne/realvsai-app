@@ -52,7 +52,7 @@ Applies to: active trial, Basic subscriber, Pro subscriber.
 |---|---|---|---:|---|
 | EA Free Trial | Subscriber | Allowed | 5/day | 500 trial credits |
 | Pro Free Trial | Subscriber | Allowed | 5/day | 500 trial credits |
-| Pro subscriber | Subscriber | Allowed | 20/day | 700 cr/month + wallet |
+| Pro subscriber | Subscriber | Allowed | 10/day | 700 cr/month + wallet |
 | Basic subscriber | Subscriber | Blocked | 10/day | 300 cr/month + wallet |
 | Wallet only | Free rates | Blocked | 5/day | Wallet balance only |
 | No sub no credits | No access | Blocked | 0 | None |
@@ -82,7 +82,7 @@ Basic subscriber:
 
 Pro subscriber:
   Full access, best rates
-  20 scans/day
+  10 scans/day
   700 cr/month + can top up with wallet credits
   Deep video allowed up to 15/month (EA) or 25/month (Normal)
 ```
@@ -114,7 +114,7 @@ Pro subscriber:
 | Credits/month | 700 cr |
 | Scan rates | Subscriber rates |
 | Deep video | Allowed — 15/month |
-| Daily scan limit | 20/day |
+| Daily scan limit | 10/day |
 | Scan history | Unlimited + PDF export |
 | Batch scanning | Up to 5 files queued |
 | Result detail | Full breakdown — generators, deepfake, C2PA, source |
@@ -137,7 +137,7 @@ Early access to new scan types
 ```txt
 500 cr/month
 25 deep scans/month
-20 scans/day
+10 scans/day
 All Pro features
 ```
 
@@ -156,7 +156,7 @@ Resets at UTC midnight.
 | Wallet only | 5/day |
 | No sub no credits | 0 |
 | Basic subscriber | 10/day |
-| Pro subscriber (any phase) | 20/day |
+| Pro subscriber (any phase) | 10/day |
 
 Message when daily limit reached:
 ```txt

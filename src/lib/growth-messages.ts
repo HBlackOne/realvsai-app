@@ -96,7 +96,7 @@ export function getGrowthMessage(
       if (userState === "ea_trial") {
         return {
           title: "You've used your 5 trial scans today.",
-          body: "Upgrade to get 20 scans/day.",
+          body: "Upgrade to get 10 scans/day.",
           cta: "Upgrade Now",
           ctaHref: PLAN_HREF,
         };

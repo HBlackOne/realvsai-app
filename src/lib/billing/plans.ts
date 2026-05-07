@@ -26,7 +26,7 @@ export const PLANS = {
     deepVideoCost: ACTIVE_PRICING.scanPrices.deepVideo,
     deepVideoMonthly: 15,
     deepVideo: true,
-    dailyScans: 20,
+    dailyScans: 10,
     historyDays: -1,
   },
   pro_loyalty: {
@@ -41,7 +41,7 @@ export const PLANS = {
     deepVideoCost: ACTIVE_PRICING.scanPrices.deepVideo,
     deepVideoMonthly: 15,
     deepVideo: true,
-    dailyScans: 20,
+    dailyScans: 10,
     historyDays: -1,
   },
   pro_normal: {
@@ -55,7 +55,7 @@ export const PLANS = {
     deepVideoCost: ACTIVE_PRICING.scanPrices.deepVideo,
     deepVideoMonthly: 15,
     deepVideo: true,
-    dailyScans: 20,
+    dailyScans: 10,
     historyDays: -1,
   },
 } as const;
