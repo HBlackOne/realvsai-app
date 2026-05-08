@@ -115,7 +115,7 @@ export function VerdictBars({
 
   return (
     <div
-      className="relative overflow-hidden rounded-[18px] p-[18px] mb-2.5"
+      className="relative overflow-hidden rounded-2xl p-[18px] mb-2.5"
       style={{
         border: `1px solid rgba(${tokens.rgb},0.2)`,
         background: `linear-gradient(135deg, rgba(${tokens.rgb},0.07) 0%, var(--color-surface) 55%)`,

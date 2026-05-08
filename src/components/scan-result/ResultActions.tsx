@@ -26,7 +26,7 @@ export function ResultActions({
       <button
         type="button"
         onClick={onScanAnother}
-        className="w-full rounded-[14px] py-3.5 text-[14px] font-extrabold cursor-pointer transition-transform active:scale-[0.97] active:opacity-85"
+        className="w-full rounded-xl py-3.5 text-[14px] font-extrabold cursor-pointer transition-transform active:scale-[0.97] active:opacity-85"
         style={{
           background: "var(--color-primary)",
           color: "var(--color-bg)",
@@ -40,7 +40,7 @@ export function ResultActions({
       <button
         type="button"
         onClick={onViewHistory}
-        className="w-full rounded-[14px] py-[13px] text-[14px] font-semibold cursor-pointer transition-colors active:scale-[0.97] hover:bg-[var(--color-surface2)]"
+        className="w-full rounded-xl py-[13px] text-[14px] font-semibold cursor-pointer transition-colors active:scale-[0.97] hover:bg-[var(--color-surface2)]"
         style={{
           background: "transparent",
           color: "var(--color-text)",

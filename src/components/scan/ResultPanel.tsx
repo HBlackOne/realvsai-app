@@ -6,10 +6,10 @@ import {
   type ScanResult as ScanResultCardData,
   type Verdict,
 } from "@/components/scan-result/ScanResultCard";
-import ScanUpsellBlock from "./ScanUpsellBlock";
-import { PreviewStat } from "./shared";
-import type { MediaType, ScanResult, ScanStage } from "./types";
-import type { ScanUpsellState } from "./scan-upsell";
+import ScanUpsellBlock from "@/components/universal-detector/ScanUpsellBlock";
+import { PreviewStat } from "@/components/universal-detector/shared";
+import type { MediaType, ScanResult, ScanStage } from "@/components/universal-detector/types";
+import type { ScanUpsellState } from "@/components/universal-detector/scan-upsell";
 
 export default function ResultPanel({
   stage,
@@ -30,22 +30,20 @@ export default function ResultPanel({
 
     return (
       <div className="pt-1">
-        <div className="rounded-2xl bg-surface p-4">
-          <div className="min-h-[18rem] rounded-2xl border border-border p-5 text-center sm:p-6">
-            <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-primary" />
-            <h3 className="mt-4 text-base font-semibold text-text">{title}</h3>
-            <p className="mt-2 text-sm text-text-muted">{description}</p>
+        <div className="min-h-[18rem] rounded-2xl border border-border bg-surface p-5 text-center sm:p-6">
+          <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-primary" />
+          <h3 className="mt-4 text-base font-semibold text-text">{title}</h3>
+          <p className="mt-2 text-sm text-text-muted">{description}</p>
 
-            <div className="mt-5 grid gap-2 sm:grid-cols-3">
-              <SummaryChip label="Stage" value={stage === "uploading" ? "Uploading" : "Processing"} />
-              <SummaryChip label="Checks" value="Authenticity" />
-              <SummaryChip label="Time" value="5–20 sec" />
-            </div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-3">
+            <SummaryChip label="Stage" value={stage === "uploading" ? "Uploading" : "Processing"} />
+            <SummaryChip label="Checks" value="Authenticity" />
+            <SummaryChip label="Time" value="5–20 sec" />
+          </div>
 
-            <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
-              <SkeletonCard />
-              <SkeletonCard />
-            </div>
+          <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
+            <SkeletonCard />
+            <SkeletonCard />
           </div>
         </div>
       </div>
@@ -80,11 +78,14 @@ export default function ResultPanel({
     <div className="pt-1">
       <div className="rounded-2xl bg-surface p-4">
         <div className="min-h-[17rem] rounded-2xl border border-dashed border-border p-6 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-dim">
+          <div
+            className="mx-auto flex items-center justify-center rounded-2xl bg-primary-dim"
+            style={{ height: 52, width: 52 }}
+          >
             <ScanLine className="h-6 w-6 text-primary" />
           </div>
-          <h3 className="mt-3 text-sm font-semibold">Analyze your first file</h3>
-          <p className="mt-2 text-sm text-text-muted">Upload a file or paste a media link to analyze.</p>
+          <h3 className="mt-3 text-[13px] font-semibold text-text">Analyze your first file</h3>
+          <p className="mt-2 text-[12px] text-text-muted">Upload a file or paste a media link to analyze.</p>
         </div>
 
         <div className="mt-3 grid gap-2.5 opacity-85 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
@@ -181,3 +182,4 @@ function SkeletonCard() {
     </div>
   );
 }
+

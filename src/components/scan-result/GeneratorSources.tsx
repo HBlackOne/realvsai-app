@@ -48,7 +48,7 @@ export function GeneratorSources({
 
   return (
     <div
-      className="rounded-[18px] p-[18px] mb-2.5"
+      className="rounded-2xl p-[18px] mb-2.5"
       style={{
         background: "var(--color-surface)",
         border: "1px solid var(--color-border)",

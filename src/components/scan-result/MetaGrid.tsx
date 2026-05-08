@@ -15,7 +15,7 @@ export type MetaItem = {
 export function MetaGrid({ items }: { items: MetaItem[] }) {
   return (
     <div
-      className="grid grid-cols-2 gap-3 rounded-[18px] px-[18px] py-3.5 mb-2.5"
+      className="grid grid-cols-2 gap-3 rounded-2xl px-[18px] py-3.5 mb-2.5"
       style={{
         background: "var(--color-surface)",
         border: "1px solid var(--color-border)",

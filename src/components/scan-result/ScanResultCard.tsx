@@ -68,23 +68,21 @@ export function ScanResultCard({
         }
       `}</style>
 
-      {/* Ready chip — stays green; signals "scan completed", not the verdict */}
-      <div
-        className="inline-flex items-center gap-1.5 rounded-full px-3 py-[5px] mb-4 text-[11px] font-semibold"
-        style={{
-          color: "var(--color-success)",
-          background: "rgba(74,222,128,0.08)",
-          border: "1px solid rgba(74,222,128,0.2)",
-        }}
-      >
+      {/* Ready eyebrow — matches V2 hero eyebrow style; signals "scan completed" */}
+      <div className="mb-4 flex items-center gap-2">
         <span
-          className="inline-block w-1.5 h-1.5 rounded-full"
+          className="inline-block w-[7px] h-[7px] rounded-full"
           style={{
             background: "var(--color-success)",
             animation: "scanResultBlink 1.6s ease-in-out infinite",
           }}
         />
-        Result ready
+        <span
+          className="text-[11px] font-bold uppercase tracking-[0.12em]"
+          style={{ color: "var(--color-success)" }}
+        >
+          Result ready
+        </span>
       </div>
 
       <VerdictBars
