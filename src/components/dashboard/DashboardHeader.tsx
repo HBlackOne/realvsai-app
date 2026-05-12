@@ -43,13 +43,26 @@ function getCreditColor(credits: number): string {
   return "text-danger animate-pulse";
 }
 
-function formatMessageDate(createdAt: string) {
+function relativeTime(createdAt: string) {
+  const timestamp = new Date(createdAt).getTime();
+  if (!Number.isFinite(timestamp)) return "";
+
+  const diffMs = Math.max(0, Date.now() - timestamp);
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+  if (diffMinutes < 1) return "just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(createdAt));
+  }).format(new Date(timestamp));
 }
 
 export function DashboardHeader({ onHamburger, onUpgrade }: DashboardHeaderProps) {
@@ -93,7 +106,7 @@ export function DashboardHeader({ onHamburger, onUpgrade }: DashboardHeaderProps
     async function loadLatestMessages() {
       setMessagesLoading(true);
       try {
-        const res = await fetch("/api/messages?limit=5", { cache: "no-store" });
+        const res = await fetch("/api/messages?limit=3", { cache: "no-store" });
         const data = await res.json();
         if (!cancelled) setLatestMessages(data.messages ?? data.data ?? []);
       } catch {
@@ -170,7 +183,7 @@ export function DashboardHeader({ onHamburger, onUpgrade }: DashboardHeaderProps
           <div
             className={`absolute right-0 top-[46px] z-50 w-[260px] max-w-[calc(100vw-20px)] transition-all duration-200 ease-out ${messagesOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"}`}
           >
-            <div className="overflow-hidden rounded-[18px] border border-border bg-surface shadow-[0_18px_40px_rgba(0,0,0,0.4)]">
+            <div className="overflow-hidden rounded-[18px] border border-border bg-surface2 shadow-[0_18px_40px_rgba(0,0,0,0.4)]">
               <div className="border-b border-border/60 px-3 pb-1.5 pt-2.5">
                 <div className="text-[13px] font-semibold text-text">Messages</div>
                 <div className="mt-0.5 text-[10.5px] text-text-dim">Latest notifications</div>
@@ -178,25 +191,39 @@ export function DashboardHeader({ onHamburger, onUpgrade }: DashboardHeaderProps
 
               <div className="max-h-[236px] overflow-y-auto px-1.5 py-1.5">
                 {messagesLoading ? (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {[0, 1, 2].map((i) => (
-                      <div key={i} className="rounded-[10px] bg-bg px-2.5 py-2.5">
-                        <SkeletonText className="h-3 w-32" />
-                        <SkeletonText className="mt-1.5 h-3 w-20" />
+                      <div key={i} className="flex items-center gap-2.5 rounded-[10px] px-3 py-2.5" style={{ background: "var(--color-surface3)" }}>
+                        <div className="h-7 w-7 flex-shrink-0 animate-pulse rounded-[8px] bg-surface-hover" />
+                        <div className="min-w-0 flex-1">
+                          <SkeletonText className="h-3 w-32" />
+                          <SkeletonText className="mt-1.5 h-2.5 w-14" />
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : latestMessages.length > 0 ? (
                   <div className="flex flex-col gap-1">
-                    {latestMessages.map((message) => (
-                      <div key={message.id} className="rounded-[10px] px-2.5 py-2 transition-colors hover:bg-surface2">
-                        <div className="flex items-start gap-2">
-                          {!message.isRead ? <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" /> : <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-transparent" />}
-                          <div className="min-w-0 flex-1">
-                            <div className={`truncate text-[12px] ${message.isRead ? "font-medium text-text-muted" : "font-bold text-text"}`}>{message.title}</div>
-                            <div className="mt-0.5 text-[10px] text-text-dim">{formatMessageDate(message.createdAt)}</div>
-                            {message.body ? <div className="mt-0.5 line-clamp-1 text-[10.5px] leading-relaxed text-text-dim">{message.body}</div> : null}
-                          </div>
+                    {latestMessages.slice(0, 3).map((message) => (
+                      <div
+                        key={message.id}
+                        className="flex max-h-[44px] items-center gap-2.5 rounded-[10px] px-3 py-2.5 transition-colors"
+                        style={{ background: "var(--color-surface3)" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-surface-hover)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-surface3)"; }}
+                      >
+                        <div
+                          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[8px]"
+                          style={{ background: message.isRead ? "var(--surface3)" : "color-mix(in srgb, var(--color-primary) 14%, var(--surface3))" }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={message.isRead ? "var(--color-text-dim)" : "var(--color-primary)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                          </svg>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[12.5px] font-semibold leading-tight" style={{ color: "var(--color-text)" }}>{message.title}</p>
+                          <p className="mt-0.5 text-[10.5px] leading-tight" style={{ color: "var(--color-text-dim)" }}>{relativeTime(message.createdAt)}</p>
                         </div>
                       </div>
                     ))}
