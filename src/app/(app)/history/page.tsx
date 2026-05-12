@@ -7,6 +7,7 @@ import { ScanRow, ScanRowSkeleton, type Scan } from "@/components/history/ScanRo
 import { BulkBar } from "@/components/history/BulkBar";
 import { fetchScans, type ScanListItem } from "@/lib/api/scans";
 import { AppPage, AppPageHeader, AppSectionHeader } from "@/components/app-shell/AppPage";
+import { SkeletonNumber } from "@/components/ui/Skeleton";
 
 const PAGE_SIZE = 8;
 
@@ -25,6 +26,7 @@ function toHistoryScan(scan: ScanListItem): Scan {
     inputType: scan.inputType,
     status: scan.status,
     sourceLabel: scan.sourceLabel,
+    previewUrl: scan.sourceUrl ?? null,
     costCredits: scan.costCredits,
     verdict: scan.verdict,
     confidence: scan.confidence,
@@ -41,7 +43,21 @@ export default function HistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
+  const [stats, setStats] = useState({ total: 0, completed: 0, failed: 0, credits: 0 });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    await Promise.all(
+      [...selected].map((id) =>
+        fetch(`/api/scans/${id}`, { method: "DELETE" }),
+      ),
+    );
+    setScans((prev) => prev.filter((s) => !selected.has(s.id)));
+    setSelected(new Set());
+    setDeleting(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +78,7 @@ export default function HistoryPage() {
       }
 
       setScans(response.data.map(toHistoryScan));
+      setStats(response.meta?.stats ?? { total: 0, completed: 0, failed: 0, credits: 0 });
       setNextCursor(response.meta?.nextCursor ?? null);
       setBooting(false);
     }
@@ -117,13 +134,6 @@ export default function HistoryPage() {
     setLoadingMore(false);
   }
 
-  const counts = useMemo(() => ({
-    total: scans.length,
-    completed: scans.filter((s) => s.status === "COMPLETED").length,
-    failed: scans.filter((s) => s.status === "FAILED" || s.status === "CANCELED").length,
-    credits: scans.reduce((a, s) => a + s.costCredits, 0),
-  }), [scans]);
-
   return (
     <AppPage className="max-w-[860px]">
       <AppPageHeader
@@ -154,10 +164,10 @@ export default function HistoryPage() {
         <div>
         <div className="grid grid-cols-4 gap-2">
         {[
-          { label: nextCursor ? "Loaded" : "Total", value: counts.total, color: "var(--color-primary)" },
-          { label: "Completed", value: counts.completed, color: "var(--color-success)" },
-          { label: "Failed", value: counts.failed, color: "var(--color-danger)" },
-          { label: nextCursor ? "Loaded cr." : "Cr. used", value: counts.credits, color: "var(--color-warning)" },
+          { label: "Total", value: stats.total, color: "var(--color-primary)" },
+          { label: "Completed", value: stats.completed, color: "var(--color-success)" },
+          { label: "Failed", value: stats.failed, color: "var(--color-danger)" },
+          { label: "Cr. used", value: stats.credits, color: "var(--color-warning)" },
         ].map((c) => (
           <div
             key={c.label}
@@ -167,18 +177,17 @@ export default function HistoryPage() {
             <p className="text-[10px] font-bold uppercase tracking-[.1em] mb-2" style={{ color: "var(--color-text-dim)" }}>
               {c.label}
             </p>
-            <p className="text-[22px] font-extrabold tracking-tight font-mono" style={{ color: c.color }}>
-              {c.value.toLocaleString()}
-            </p>
+            {booting ? (
+              <SkeletonNumber className="h-8 w-12" />
+            ) : (
+              <p className="text-[22px] font-extrabold tracking-tight font-mono" style={{ color: c.color }}>
+                {c.value.toLocaleString()}
+              </p>
+            )}
           </div>
         ))}
         </div>
 
-        {nextCursor ? (
-          <p className="mt-2 text-[11px]" style={{ color: "var(--color-text-dim)" }}>
-            Summary reflects the currently loaded history. Load more to expand it.
-          </p>
-        ) : null}
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -223,6 +232,18 @@ export default function HistoryPage() {
             : `${filtered.length} ${filter.toLowerCase()} scan${filtered.length !== 1 ? "s" : ""}`}
           icon="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
         />
+
+        {anySelected && (
+          <BulkBar
+            count={selected.size}
+            total={filtered.length}
+            allSelected={allVisibleSelected}
+            onSelectAll={selectAll}
+            onDeselectAll={deselectAll}
+            onDelete={handleDelete}
+            deleting={deleting}
+          />
+        )}
 
         <div
           className="rounded-[20px] p-2"
@@ -324,15 +345,6 @@ export default function HistoryPage() {
         </div>
       </div>
 
-        {anySelected && (
-          <BulkBar
-            count={selected.size}
-            total={filtered.length}
-            allSelected={allVisibleSelected}
-            onSelectAll={selectAll}
-            onDeselectAll={deselectAll}
-          />
-        )}
       </div>
     </AppPage>
   );

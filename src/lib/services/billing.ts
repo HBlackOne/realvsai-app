@@ -18,7 +18,7 @@ import {
   getSubscriptionPlanByVariantId,
   SUBSCRIPTION_VARIANT_ENVS,
 } from "@/lib/billing/config";
-import { createPurchaseRecapMessage } from "@/lib/services/messages";
+import { createAppMessage, createPurchaseRecapMessage } from "@/lib/services/messages";
 import { ensureUserWallet } from "@/lib/services/wallet";
 import { markUserAsPaid } from "@/lib/services/user";
 
@@ -636,6 +636,15 @@ export async function activateTrialFromSubscription(
     });
   });
 
+  await createAppMessage({
+    userId,
+    type: "subscription_start",
+    title: "Pro trial activated",
+    body: "Your free trial has started. 500 trial credits added.",
+    dedupeKey: `subscription_start:${subscriptionId}`,
+    metadata: { subscriptionId, trialBalance: 500, earlyAccessTrial },
+  });
+
   if (attributes?.customer_id) {
     await upsertBillingCustomerFromOrder({
       userId,
@@ -691,6 +700,8 @@ export async function syncSubscriptionLifecycle(
     SubscriptionStatus.PAST_DUE,
   ]).has(nextStatus);
 
+  const previousStatus = existingSub.status;
+
   await db.subscription.update({
     where: { providerSubscriptionId: subscriptionId },
     data: {
@@ -716,6 +727,28 @@ export async function syncSubscriptionLifecycle(
       lastSyncedAt: new Date(),
     },
   });
+
+  if (nextStatus === SubscriptionStatus.CANCELED) {
+    await createAppMessage({
+      userId: existingSub.userId,
+      type: "subscription_cancel",
+      title: "Subscription cancelled",
+      body: "Your plan remains active until the end of the billing period.",
+      dedupeKey: `subscription_cancel:${subscriptionId}`,
+      metadata: { subscriptionId, previousStatus, nextStatus },
+    });
+  }
+
+  if (nextStatus === SubscriptionStatus.EXPIRED && previousStatus !== SubscriptionStatus.EXPIRED) {
+    await createAppMessage({
+      userId: existingSub.userId,
+      type: "trial_expired",
+      title: "Trial ended",
+      body: "Your free trial has ended. Subscribe to continue using Pro features.",
+      dedupeKey: `trial_expired:${subscriptionId}`,
+      metadata: { subscriptionId, previousStatus, nextStatus },
+    });
+  }
 
   return {
     skipped: false,
@@ -860,6 +893,23 @@ export async function allocateSubscriptionCredits(
         providerVariantId: variantId ?? null,
       },
     });
+  });
+
+  await createAppMessage({
+    userId: existingSub.userId,
+    type: isNewBillingPeriod ? "subscription_renew" : "subscription_start",
+    title: isNewBillingPeriod ? "Subscription renewed" : "Pro plan activated",
+    body: isNewBillingPeriod
+      ? `Pro plan renewed · ${phase.monthlyCredits} credits added to your monthly balance.`
+      : `Pro plan activated · ${phase.monthlyCredits} monthly credits added.`,
+    dedupeKey: `${isNewBillingPeriod ? "subscription_renew" : "subscription_start"}:${subscriptionId}:${nextPeriodStartedAt.toISOString()}`,
+    metadata: {
+      subscriptionId,
+      variantId,
+      phaseKey,
+      monthlyCredits: phase.monthlyCredits,
+      subscriptionPriceCents: nextPriceCents,
+    },
   });
 
   return {

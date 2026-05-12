@@ -12,6 +12,15 @@ export type AppMessageItem = {
 export type MessagesResponse = {
   success: boolean;
   data?: AppMessageItem[];
+  messages?: AppMessageItem[];
+  nextCursor?: string | null;
+  meta?: {
+    nextCursor: string | null;
+    stats?: {
+      total: number;
+      unread: number;
+    };
+  };
   error?: string;
 };
 

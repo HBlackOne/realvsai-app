@@ -64,6 +64,42 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       },
     });
 
+    const balanceState = await db.user.findUnique({
+      where: { id: dbUser.id },
+      select: {
+        trialScanBalance: true,
+        wallet: { select: { balance: true } },
+        subscription: { select: { status: true, subscriptionCreditBalance: true } },
+      },
+    });
+    const spendableBalance =
+      (balanceState?.trialScanBalance ?? 0) +
+      (balanceState?.wallet?.balance ?? 0) +
+      (balanceState?.subscription && ["ACTIVE", "ON_TRIAL"].includes(balanceState.subscription.status)
+        ? balanceState.subscription.subscriptionCreditBalance
+        : 0);
+
+    if (spendableBalance < 50) {
+      const recentLowCreditMessage = await db.appMessage.findFirst({
+        where: {
+          userId: dbUser.id,
+          type: "credits_low",
+          createdAt: { gte: new Date(Date.now() - 86_400_000) },
+        },
+      });
+
+      if (!recentLowCreditMessage) {
+        await createAppMessage({
+          userId: dbUser.id,
+          type: "credits_low",
+          title: "Low credits",
+          body: `You have ${spendableBalance} credits remaining. Top up to keep scanning.`,
+          dedupeKey: `credits_low:${dbUser.id}:${new Date().toISOString().slice(0, 10)}`,
+          metadata: { balance: spendableBalance },
+        });
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to complete scan.";

@@ -4,6 +4,7 @@ import { getOrCreateCurrentUser } from "@/lib/auth/get-or-create-user";
 import { SCAN_PRICES } from "@/lib/billing/pricing.constants";
 import {
   createScanRecord,
+  getScanHistoryStatsByUserId,
   listScansByUserId,
   serializeScan,
   validateTrialScan,
@@ -43,7 +44,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(Number(searchParams.get("limit") || 10), 20);
     const cursor = searchParams.get("cursor");
-    const scans = await listScansByUserId(user.id, limit, cursor);
+    const [scans, stats] = await Promise.all([
+      listScansByUserId(user.id, limit, cursor),
+      getScanHistoryStatsByUserId(user.id),
+    ]);
     const nextCursor =
       scans.length === limit ? (scans[scans.length - 1]?.id ?? null) : null;
 
@@ -59,6 +63,7 @@ export async function GET(request: Request) {
       ),
       meta: {
         nextCursor,
+        stats,
       },
     });
   } catch (error) {

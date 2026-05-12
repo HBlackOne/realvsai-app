@@ -3,7 +3,6 @@ import "server-only";
 import { auth } from "@clerk/nextjs/server";
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
-import { deleteBlob } from "@/lib/services/blob";
 import { callHiveSync } from "@/lib/services/hive";
 import { parseHiveResponse } from "@/lib/services/hive-parser";
 import { failScanRecord } from "@/lib/services/scans";
@@ -99,8 +98,6 @@ export async function POST(
     console.log("Running Hive scan:", { sourceUrl, serverMediaType });
     raw = await callHiveSync(sourceUrl, serverMediaType);
   } catch (error) {
-    if (blobPathname) await deleteBlob(String(blobPathname)).catch(() => {});
-
     if (error instanceof Error && error.name === "ScanRateLimitError") {
       await failScanRecord({ scanId: id, errorMessage: "Rate limit reached." });
       return NextResponse.json(
@@ -113,7 +110,7 @@ export async function POST(
     return NextResponse.json({ error: "Scan failed." }, { status: 500 });
   }
 
-  if (blobPathname) await deleteBlob(String(blobPathname)).catch(() => {});
+  void blobPathname;
 
   const processingTimeMs = Date.now() - startTime;
 

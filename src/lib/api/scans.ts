@@ -4,6 +4,7 @@ export type ScanListItem = {
   inputType: "FILE" | "URL";
   status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELED";
   sourceLabel: string;
+  sourceUrl: string | null;
   costCredits: number;
   verdict: string | null;
   confidence: number | null;
@@ -18,6 +19,12 @@ export type ScansResponse = {
   data?: ScanListItem[];
   meta?: {
     nextCursor: string | null;
+    stats?: {
+      total: number;
+      completed: number;
+      failed: number;
+      credits: number;
+    };
   };
   error?: string;
 };

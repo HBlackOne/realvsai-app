@@ -56,10 +56,10 @@ export async function createPurchaseRecapMessage({
 
   return createAppMessage({
     userId,
-    type: "purchase_recap",
-    title: "Balance updated successfully",
-    body: `Your purchase was confirmed.\n${credits} credits were added to your balance for ${amountText}.`,
-    dedupeKey: `purchase:${orderId}`,
+    type: "credits_purchased",
+    title: "Credits added",
+    body: `${credits} credits added to your wallet · ${amountText}`,
+    dedupeKey: `credits_purchased:${orderId}`,
     metadata: {
       orderId,
       credits,
@@ -69,11 +69,17 @@ export async function createPurchaseRecapMessage({
   });
 }
 
-export async function listMessagesByUserId(userId: string, limit = 20) {
+export async function listMessagesByUserId(userId: string, limit = 20, cursor?: string | null) {
   return db.appMessage.findMany({
     where: { userId },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit,
+    ...(cursor
+      ? {
+          skip: 1,
+          cursor: { id: cursor },
+        }
+      : {}),
   });
 }
 
@@ -84,6 +90,15 @@ export async function countUnreadMessagesByUserId(userId: string) {
       isRead: false,
     },
   });
+}
+
+export async function getMessageStatsByUserId(userId: string) {
+  const [total, unread] = await Promise.all([
+    db.appMessage.count({ where: { userId } }),
+    db.appMessage.count({ where: { userId, isRead: false } }),
+  ]);
+
+  return { total, unread };
 }
 
 export async function markAllMessagesReadByUserId(userId: string) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type MediaType = "IMAGE" | "VIDEO" | "AUDIO";
 type ScanStatus = "COMPLETED" | "FAILED" | "PENDING" | "PROCESSING" | "CANCELED";
@@ -10,12 +10,21 @@ interface ScanThumbnailProps {
   seed: number;
   selected?: boolean;
   status: ScanStatus;
+  previewUrl?: string | null;
 }
 
-export function ScanThumbnail({ mediaType, seed, selected = false, status }: ScanThumbnailProps) {
+export function ScanThumbnail({ mediaType, seed, selected = false, status, previewUrl }: ScanThumbnailProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const showPreview = !!previewUrl && !previewFailed && mediaType !== "AUDIO";
+  const showCanvas = !showPreview;
 
   useEffect(() => {
+    setPreviewFailed(false);
+  }, [previewUrl]);
+
+  useEffect(() => {
+    if (!showCanvas) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -108,7 +117,7 @@ export function ScanThumbnail({ mediaType, seed, selected = false, status }: Sca
       ctx.beginPath(); ctx.moveTo(W * 0.3, H * 0.3); ctx.lineTo(W * 0.7, H * 0.7); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(W * 0.7, H * 0.3); ctx.lineTo(W * 0.3, H * 0.7); ctx.stroke();
     }
-  }, [mediaType, seed, status]);
+  }, [mediaType, seed, status, showCanvas]);
 
   const typeColor =
     mediaType === "IMAGE" ? "var(--color-primary)" :
@@ -128,7 +137,68 @@ export function ScanThumbnail({ mediaType, seed, selected = false, status }: Sca
         transition: "border-color 0.15s",
       }}
     >
-      <canvas ref={canvasRef} className="block w-full h-full" />
+      {showPreview ? (
+        <>
+          {mediaType === "VIDEO" ? (
+            <video
+              src={previewUrl}
+              muted
+              playsInline
+              preload="metadata"
+              onError={() => setPreviewFailed(true)}
+              className="block w-full h-full"
+              style={{
+                objectFit: "cover",
+                filter: status === "FAILED" ? "grayscale(1) brightness(0.6)" : "none",
+              }}
+            />
+          ) : (
+            <img
+              src={previewUrl}
+              alt=""
+              onError={() => setPreviewFailed(true)}
+              referrerPolicy="no-referrer"
+              className="block w-full h-full"
+              style={{
+                objectFit: "cover",
+                filter: status === "FAILED" ? "grayscale(1) brightness(0.6)" : "none",
+              }}
+            />
+          )}
+          {mediaType === "VIDEO" && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div
+                className="flex items-center justify-center rounded-full"
+                style={{ width: 20, height: 20, background: "rgba(0,0,0,0.55)" }}
+              >
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="#fff">
+                  <path d="M1 0.5 L7 4 L1 7.5 Z" />
+                </svg>
+              </div>
+            </div>
+          )}
+          {(status === "FAILED" || status === "CANCELED") && (
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              style={{ background: "rgba(255,60,60,0.28)" }}
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="rgba(255,180,180,0.9)"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </div>
+          )}
+        </>
+      ) : (
+        <canvas ref={canvasRef} className="block w-full h-full" />
+      )}
       <div
         className="absolute bottom-1 left-1 rounded-[4px] px-[5px] py-px text-[9px] font-bold tracking-[0.07em] uppercase"
         style={{ background: "rgba(0,0,0,0.72)", color: typeColor }}

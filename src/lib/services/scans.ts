@@ -924,6 +924,30 @@ export async function countScansByUserId(userId: string) {
   });
 }
 
+export async function getScanHistoryStatsByUserId(userId: string) {
+  const [total, completed, failed, credits] = await Promise.all([
+    db.scan.count({ where: { userId } }),
+    db.scan.count({ where: { userId, status: ScanStatus.COMPLETED } }),
+    db.scan.count({
+      where: {
+        userId,
+        status: { in: [ScanStatus.FAILED, ScanStatus.CANCELED] },
+      },
+    }),
+    db.scan.aggregate({
+      where: { userId },
+      _sum: { costCredits: true },
+    }),
+  ]);
+
+  return {
+    total,
+    completed,
+    failed,
+    credits: credits._sum.costCredits ?? 0,
+  };
+}
+
 export async function getScanUsageByUserId(userId: string) {
   const [imageScans, videoScans, audioScans] = await Promise.all([
     db.scan.count({
@@ -966,6 +990,7 @@ export function serializeScan(
     inputType: scan.inputType,
     status: scan.status,
     sourceLabel: scan.sourceLabel,
+    sourceUrl: scan.sourceUrl ?? null,
     costCredits: scan.costCredits,
     verdict: scan.verdict,
     confidence: scan.confidence,

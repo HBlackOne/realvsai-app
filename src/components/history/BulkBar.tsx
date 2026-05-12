@@ -6,11 +6,20 @@ interface BulkBarProps {
   allSelected: boolean;
   onSelectAll: () => void;
   onDeselectAll: () => void;
+  onDelete: () => Promise<void>;
+  deleting: boolean;
 }
 
-export function BulkBar({ count, total, allSelected, onSelectAll, onDeselectAll }: BulkBarProps) {
+export function BulkBar({
+  count, total, allSelected,
+  onSelectAll, onDeselectAll,
+  onDelete, deleting,
+}: BulkBarProps) {
   return (
-    <div className="sticky bottom-6 z-50 mt-4">
+    <div
+      className="mt-0 mb-2"
+      style={{ animation: "bulkIn .3s cubic-bezier(.34,1.26,.64,1) both" }}
+    >
       <div className="max-w-[860px] mx-auto">
         <div
           className="flex items-center gap-2.5 rounded-[16px] px-4 py-3 flex-wrap"
@@ -20,6 +29,7 @@ export function BulkBar({ count, total, allSelected, onSelectAll, onDeselectAll 
             boxShadow: "0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(126,170,255,0.06)",
           }}
         >
+          {/* selection info */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div
               className="w-7 h-7 rounded-[8px] flex items-center justify-center flex-shrink-0"
@@ -27,7 +37,7 @@ export function BulkBar({ count, total, allSelected, onSelectAll, onDeselectAll 
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke="var(--color-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0" />
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/>
               </svg>
             </div>
             <span className="text-[13px] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -36,6 +46,7 @@ export function BulkBar({ count, total, allSelected, onSelectAll, onDeselectAll 
             <span className="text-[11.5px]" style={{ color: "var(--color-text-dim)" }}>of {total}</span>
           </div>
 
+          {/* actions */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={allSelected ? onDeselectAll : onSelectAll}
@@ -64,22 +75,34 @@ export function BulkBar({ count, total, allSelected, onSelectAll, onDeselectAll 
             </button>
 
             <button
-              disabled
-              title="Bulk delete will be wired later"
-              className="flex items-center gap-1.5 px-3.5 py-[7px] rounded-[9px] text-[12px] font-semibold opacity-80"
+              onClick={onDelete}
+              disabled={deleting}
+              className="flex items-center gap-1.5 px-3.5 py-[7px] rounded-[9px] text-[12px] font-semibold transition-all"
               style={{
-                border: "1px dashed rgba(255,107,107,.18)",
-                background: "rgba(255,107,107,.05)",
-                color: "rgba(255,107,107,.58)",
-                cursor: "default",
+                border: "1px solid rgba(255,107,107,.25)",
+                background: "rgba(255,107,107,.08)",
+                color: deleting ? "rgba(255,107,107,.45)" : "var(--color-danger)",
+                cursor: deleting ? "default" : "pointer",
                 fontFamily: "inherit",
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16" />
-              </svg>
-              Delete later
+              {deleting ? (
+                <>
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ border: "1.5px solid rgba(255,107,107,.2)", borderTopColor: "var(--color-danger)", animation: "spin 0.8s linear infinite" }}
+                  />
+                  Deleting…
+                </>
+              ) : (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16"/>
+                  </svg>
+                  Delete {count}
+                </>
+              )}
             </button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ScanThumbnail } from "./ScanThumbnail";
 import { DownloadMenu } from "./DownloadMenu";
 
@@ -13,6 +14,7 @@ export interface Scan {
   inputType: InputType;
   status: ScanStatus;
   sourceLabel: string;
+  previewUrl: string | null;
   costCredits: number;
   verdict: string | null;
   confidence: number | null;
@@ -78,7 +80,13 @@ export function ScanRow({ scan, idx, selected, onSelect, anySelected }: ScanRowP
       }}
     >
       <div className="relative flex-shrink-0" onClick={(e) => { e.stopPropagation(); onSelect(!selected); }}>
-        <ScanThumbnail mediaType={scan.mediaType} seed={scan.seed} selected={selected} status={scan.status} />
+        <ScanThumbnail
+          mediaType={scan.mediaType}
+          seed={scan.seed}
+          selected={selected}
+          status={scan.status}
+          previewUrl={scan.previewUrl}
+        />
         <div
           className="absolute top-[5px] left-[5px] transition-opacity"
           style={{ opacity: anySelected || selected ? 1 : 0 }}
@@ -160,7 +168,7 @@ export function ScanRow({ scan, idx, selected, onSelect, anySelected }: ScanRowP
         )}
       </div>
 
-      <DownloadMenu scanId={scan.id} />
+      <DownloadMenu scan={scan} />
     </div>
   );
 }
@@ -168,17 +176,17 @@ export function ScanRow({ scan, idx, selected, onSelect, anySelected }: ScanRowP
 export function ScanRowSkeleton() {
   return (
     <div className="flex items-center gap-3 px-4 py-[14px] mb-[3px]">
-      <div className="w-[72px] h-[56px] rounded-[10px] flex-shrink-0 animate-pulse" style={{ background: "var(--color-surface3)" }} />
+      <Skeleton className="w-[72px] h-[56px] rounded-[10px] flex-shrink-0" />
       <div className="flex-1">
         <div className="flex gap-[5px] mb-2">
-          <div className="h-[18px] w-[70px] rounded-[6px] animate-pulse" style={{ background: "var(--color-surface3)" }} />
-          <div className="h-[18px] w-[60px] rounded-[6px] animate-pulse" style={{ background: "var(--color-surface3)" }} />
+          <Skeleton className="h-[18px] w-[70px] rounded-[6px]" />
+          <Skeleton className="h-[18px] w-[60px] rounded-[6px]" />
         </div>
-        <div className="h-[14px] w-1/2 rounded-[5px] mb-1.5 animate-pulse" style={{ background: "var(--color-surface3)" }} />
-        <div className="h-[10px] w-[110px] rounded-[4px] mb-2 animate-pulse" style={{ background: "var(--color-surface3)" }} />
+        <Skeleton className="h-[14px] w-1/2 rounded-[5px] mb-1.5" />
+        <Skeleton className="h-[10px] w-[110px] rounded-[4px] mb-2" />
         <div className="flex gap-3">
-          <div className="h-[10px] w-[80px] rounded-[4px] animate-pulse" style={{ background: "var(--color-surface3)" }} />
-          <div className="h-[10px] w-[70px] rounded-[4px] animate-pulse" style={{ background: "var(--color-surface3)" }} />
+          <Skeleton className="h-[10px] w-[80px] rounded-[4px]" />
+          <Skeleton className="h-[10px] w-[70px] rounded-[4px]" />
         </div>
       </div>
     </div>
