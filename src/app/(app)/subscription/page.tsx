@@ -17,7 +17,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useAppMe } from "@/hooks/use-app-me";
 import { useCheckout } from "@/hooks/use-checkout";
 import type { AppMeData } from "@/lib/api/me";
-import { resolveUserState, type UserStateKind } from "@/lib/user-state";
+import { getSubscriptionState, resolveUserState, type UserStateKind } from "@/lib/user-state";
 import {
   AppPage,
   AppPageHeader,
@@ -40,6 +40,7 @@ function formatSubscriptionStatus(status: string): string {
     case "ACTIVE":
       return "Active";
     case "CANCELED":
+    case "CANCELLED":
       return "Cancelled";
     case "EXPIRED":
       return "Expired";
@@ -424,13 +425,25 @@ function PlanHero({
   const plan = EARLY_ACCESS_PLANS[planId];
   const price = priceCents ?? plan.currentPriceCents;
   const isTrialSubscription = status === "ON_TRIAL";
-  const totalAvailable = trialBalance + walletBalance + subBalance;
-  const creditsUsed = 0;
-  const displayPercent = totalAvailable > 0
-    ? Math.round((creditsUsed / totalAvailable) * 100)
+  const totalCredits = monthlyCredits || plan.monthlyCredits;
+  const creditsRemaining = subBalance;
+  const displayPercent = totalCredits > 0
+    ? Math.round((creditsRemaining / totalCredits) * 100)
     : 0;
   const meterColor = isTrialSubscription ? "var(--warning)" : "var(--primary)";
-  const badgeLabel = isTrialSubscription ? "TRIAL" : "ACTIVE";
+  const statusDisplay = {
+    ACTIVE: { label: "Active", color: "var(--color-success)" },
+    ON_TRIAL: { label: "Free Trial Active", color: "var(--color-primary)" },
+    CANCELED: { label: "Cancelled", color: "var(--color-warning)" },
+    CANCELLED: { label: "Cancelled", color: "var(--color-warning)" },
+    EXPIRED: { label: "Expired", color: "var(--color-danger)" },
+    PAST_DUE: { label: "Payment failed", color: "var(--color-danger)" },
+    PAUSED: { label: "Paused", color: "var(--color-text-dim)" },
+  } as const;
+  const statusMeta = statusDisplay[status as keyof typeof statusDisplay] ?? {
+    label: formatSubscriptionStatus(status),
+    color: meterColor,
+  };
   const specs = [
     { label: "Credits / month", val: plan.monthlyCredits.toLocaleString() },
     { label: "Deep / month", val: String(plan.deepVideoMonthlyLimit) },
@@ -502,15 +515,15 @@ function PlanHero({
                   style={{
                     padding: "3px 9px",
                     borderRadius: 100,
-                    background: isTrialSubscription ? "var(--warning-dim)" : "var(--primary-dim)",
-                    border: `1px solid color-mix(in srgb, ${meterColor} 25%, transparent)`,
+                    background: `color-mix(in srgb, ${statusMeta.color} 12%, transparent)`,
+                    border: `1px solid color-mix(in srgb, ${statusMeta.color} 25%, transparent)`,
                     fontSize: 9.5,
                     fontWeight: 800,
-                    color: meterColor,
+                    color: statusMeta.color,
                     letterSpacing: ".06em",
                   }}
                 >
-                  {badgeLabel}
+                  {statusMeta.label}
                 </div>
               )}
               {isLocked ? (
@@ -535,7 +548,7 @@ function PlanHero({
               <SkeletonText className="h-4 w-20" />
             ) : (
               <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.4 }}>
-                Status: <span style={{ color: meterColor, fontWeight: 700 }}>{formatSubscriptionStatus(status)}</span>
+                Status: <span style={{ color: statusMeta.color, fontWeight: 700 }}>{statusMeta.label}</span>
               </div>
             )}
           </div>
@@ -619,7 +632,7 @@ function PlanHero({
               fontFamily: "'DM Mono',monospace",
             }}
           >
-            {loadingMe ? "— of — cr used" : `${creditsUsed.toLocaleString()} of ${totalAvailable.toLocaleString()} cr used`}
+            {loadingMe ? "— of — cr remaining" : `${creditsRemaining.toLocaleString()} of ${totalCredits.toLocaleString()} cr remaining`}
           </div>
         </div>
 
@@ -1551,39 +1564,30 @@ function WhyUpgradeCards({
 
 function ManagePlanSection({
   me,
-  refresh,
   showToast,
 }: {
   me: AppMeData | null;
   refresh: () => Promise<void>;
   showToast: (message: string, type?: "success" | "error" | "info") => void;
 }) {
-  const sub = me?.subscription ?? null;
+  const sourceSub = me?.subscription ?? null;
+  const sub = getSubscriptionState(me);
   const loadingMe = !me;
-  const accessEndsAt = sub?.trialEndsAt ?? sub?.renewsAt ?? sub?.currentPeriodEnd ?? null;
-  const dateLabel = formatDate(accessEndsAt);
+  const dateLabel = sub.isTrial ? "Trial ends" : sub.isCancelled ? "Access until" : sub.isActive ? "Renews" : null;
+  const dateValue = sub.isTrial ? sub.trialEndsAt : sub.isCancelled ? sub.endsAt : sub.renewsAt;
+  const formattedDate = dateValue
+    ? dateValue.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+    : "—";
 
-  async function handleCancelPlan() {
-    const res = await fetch("/api/billing/subscription/cancel", {
-      method: "POST",
-    });
-    const data = await res.json();
-    if (!res.ok || !data?.success) {
-      throw new Error(data?.error || "Unable to cancel plan.");
-    }
-    await refresh();
-    showToast("Plan cancelled · Access continues until renewal date", "success");
-  }
-
-  async function handleUpdatePayment() {
+  async function openBillingPortal() {
     try {
-      const res = await fetch("/api/billing/subscription/payment-url");
+      const res = await fetch("/api/billing/subscription/portal-url");
       const data = await res.json();
-      if (!res.ok || !data?.success || !data?.url) {
-        showToast("Unable to update payment method. Try again.", "error");
+      if (!res.ok || !data?.url) {
+        showToast(data?.error || "Unable to open billing portal. Try again.", "error");
         return;
       }
-      window.LemonSqueezy?.Url?.Open(data.url);
+      window.open(data.url, "_blank");
     } catch {
       showToast("Connection issue. Try again.", "error");
     }
@@ -1596,20 +1600,63 @@ function ManagePlanSection({
         label="Manage plan"
       />
       <div className="space-y-4 rounded-[16px] border border-border bg-surface2 p-4">
-        <div className="flex justify-between gap-4 text-[13px]">
-          <span className="text-text-dim">
-            {sub?.status === "ON_TRIAL" ? "Trial ends" : "Renews"}
-          </span>
-          <span className="font-semibold text-text">{loadingMe ? <SkeletonText className="h-4 w-24" /> : dateLabel}</span>
-        </div>
+        {sub.renewalSoon && (
+          <div className="rounded-[14px] border border-warning/30 bg-warning/8 px-4 py-3">
+            <p className="text-[13px] font-semibold text-warning">
+              {sub.daysUntilRenewal === 0 ? "Your plan renews today" : `Plan renews in ${sub.daysUntilRenewal} days`}
+            </p>
+            <p className="mt-0.5 text-[11px] text-text-dim">$9.99 will be charged to your payment method</p>
+          </div>
+        )}
+
+        {sub.isCancelled && sub.endsAt && (
+          <div className="rounded-[14px] border border-warning/20 bg-warning/6 px-4 py-3">
+            <p className="text-[13px] font-semibold text-warning">Plan cancelled</p>
+            <p className="mt-0.5 text-[11px] text-text-dim">
+              {sub.daysUntilEnd && sub.daysUntilEnd > 0
+                ? `Pro access continues for ${sub.daysUntilEnd} more day${sub.daysUntilEnd === 1 ? "" : "s"}`
+                : "Pro access has ended"}
+            </p>
+            <button type="button" onClick={openBillingPortal} className="mt-1.5 text-[11px] font-semibold text-primary">
+              Reactivate →
+            </button>
+          </div>
+        )}
+
+        {sub.isExpired && (
+          <div className="rounded-[14px] border border-danger/20 bg-danger/6 px-4 py-3">
+            <p className="text-[13px] font-semibold text-danger">Your plan has ended</p>
+            <p className="mt-0.5 text-[11px] text-text-dim">Subscribe to continue using Pro features</p>
+            <Link href="/subscription" className="mt-1.5 inline-block text-[11px] font-semibold text-primary">
+              View plans →
+            </Link>
+          </div>
+        )}
+
+        {sub.isPastDue && (
+          <div className="rounded-[14px] border border-danger/30 bg-danger/8 px-4 py-3">
+            <p className="text-[13px] font-semibold text-danger">Payment failed</p>
+            <p className="mt-0.5 text-[11px] text-text-dim">Update your payment method to keep Pro access</p>
+            <button type="button" onClick={openBillingPortal} className="mt-1.5 text-[11px] font-semibold text-primary">
+              Update payment →
+            </button>
+          </div>
+        )}
+
+        {dateLabel && dateValue && (
+          <div className="flex justify-between gap-4 text-[13px]">
+            <span className="text-text-dim">{dateLabel}</span>
+            <span className="font-semibold text-text">{loadingMe ? <SkeletonText className="h-4 w-24" /> : formattedDate}</span>
+          </div>
+        )}
 
         <div className="flex justify-between gap-4 text-[13px]">
           <span className="text-text-dim">Payment method</span>
           <span className="font-semibold text-text">
             {loadingMe ? (
               <SkeletonText className="h-4 w-28" />
-            ) : sub?.cardBrand || sub?.cardLastFour ? (
-              [sub.cardBrand, sub.cardLastFour ? `•••• ${sub.cardLastFour}` : null]
+            ) : sourceSub?.cardBrand || sourceSub?.cardLastFour ? (
+              [sourceSub.cardBrand, sourceSub.cardLastFour ? `•••• ${sourceSub.cardLastFour}` : null]
                 .filter(Boolean)
                 .join(" ")
             ) : (
@@ -1618,24 +1665,23 @@ function ManagePlanSection({
           </span>
         </div>
 
-        <button
-            type="button"
-            onClick={loadingMe ? undefined : handleUpdatePayment}
-            className="w-full rounded-[12px] border border-border bg-surface px-4 py-2.5 text-[13px] font-semibold text-text-muted transition hover:bg-surface-hover"
-          >
-            Update payment method
-          </button>
+        {(["ACTIVE", "ON_TRIAL", "PAUSED"].includes(sub.status ?? "")) && (
+          <SmartButton label="Manage Plan" loadingLabel="Opening portal…" onClick={openBillingPortal} className="w-full" successOnResolve={false} />
+        )}
 
-        <SmartButton
-          label="Cancel Plan"
-          confirmLabel={`Cancel plan? Access ends ${dateLabel} · Tap again`}
-          loadingLabel="Cancelling..."
-          successLabel="Plan cancelled"
-          variant="danger"
-          requiresConfirm
-          onClick={loadingMe ? async () => {} : handleCancelPlan}
-          className="w-full"
-        />
+        {sub.isCancelled && (
+          <SmartButton label="Reactivate Plan" loadingLabel="Opening portal…" onClick={openBillingPortal} className="w-full" successOnResolve={false} />
+        )}
+
+        {sub.isExpired && (
+          <Link href="/subscription" className="block w-full rounded-[12px] bg-primary px-4 py-2.5 text-center text-[13px] font-semibold text-bg transition hover:bg-primary-hover">
+            Subscribe again
+          </Link>
+        )}
+
+        {sub.isPastDue && (
+          <SmartButton label="Update payment method" loadingLabel="Opening portal…" onClick={openBillingPortal} className="w-full" successOnResolve={false} />
+        )}
       </div>
     </section>
   );
@@ -1763,6 +1809,7 @@ export default function SubscriptionPage() {
     trialStatus !== "ACTIVE" &&
     hasTrialRecord &&
     (!trialBalance || Boolean(trialEndsAtMs && trialEndsAtMs <= Date.now()));
+  const subscriptionState = getSubscriptionState(me);
   const userState = resolveUserState(me);
   const hasActiveTrial = userState === "ea_trial" || userState === "normal_trial";
   const hasActiveSubscriber =
@@ -1793,14 +1840,7 @@ export default function SubscriptionPage() {
     "loyalty_pro",
     "normal_pro",
   ].includes(userState);
-  const showManagePlan = [
-    "ea_trial",
-    "normal_trial",
-    "ea_pro",
-    "normal_pro",
-    "loyalty_pro",
-    "basic",
-  ].includes(userState);
+  const showManagePlan = Boolean(me?.subscription) || subscriptionState.isPro || subscriptionState.isExpired || subscriptionState.isPastDue;
 
   async function handleSubscription(planId: EarlyAccessPlanId) {
     setLoadingPlanId(planId);

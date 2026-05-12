@@ -22,6 +22,13 @@ import { createAppMessage, createPurchaseRecapMessage } from "@/lib/services/mes
 import { ensureUserWallet } from "@/lib/services/wallet";
 import { markUserAsPaid } from "@/lib/services/user";
 
+function fmtUsd(cents: number | null | undefined) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format((cents ?? 0) / 100);
+}
+
 export async function getBillingCustomerByUserId(userId: string) {
   return db.billingCustomer.findUnique({
     where: { userId },
@@ -364,6 +371,24 @@ function getV5SubscriptionPhaseConfig(phaseKey: V5SubscriptionPhaseKey) {
   return SUBSCRIPTION_PHASES[phaseKey];
 }
 
+function getPlanMonthlyCredits(planId: string | null | undefined, fallback = 700) {
+  switch (planId) {
+    case "basic":
+      return SUBSCRIPTION_PHASES.basicNormal.monthlyCredits;
+    case "pro_ea":
+    case "pro_early_access":
+      return SUBSCRIPTION_PHASES.proEarlyAccess.monthlyCredits;
+    case "pro_loyalty":
+      return SUBSCRIPTION_PHASES.proLoyalty.monthlyCredits;
+    case "pro_normal":
+      return SUBSCRIPTION_PHASES.proNormal.monthlyCredits;
+    case "pro":
+      return SUBSCRIPTION_PHASES.proEarlyAccess.monthlyCredits;
+    default:
+      return fallback;
+  }
+}
+
 function isTrialSubscriptionVariant(variantId: string | null) {
   return Boolean(
     variantId &&
@@ -538,6 +563,8 @@ export async function activateTrialFromSubscription(
   }
 
   const earlyAccessTrial = isEarlyAccessTrialVariant(variantId);
+  const phaseKey = earlyAccessTrial ? "proEarlyAccess" : "proNormal";
+  const planMonthlyCredits = getPlanMonthlyCredits(getV5SubscriptionPhaseConfig(phaseKey).id);
   const trialEndsAt = parseDate(attributes?.trial_ends_at);
   const renewsAt = parseDate(attributes?.renews_at);
   const endsAt = parseDate(attributes?.ends_at);
@@ -580,8 +607,8 @@ export async function activateTrialFromSubscription(
         renewsAt,
         endsAt,
         subscriptionPlanId: "pro",
-        subscriptionMonthlyCredits: 0,
-        subscriptionCreditBalance: 0,
+        subscriptionMonthlyCredits: planMonthlyCredits,
+        subscriptionCreditBalance: planMonthlyCredits,
         subscriptionPriceCents: earlyAccessTrial
           ? SUBSCRIPTION_PHASES.proEarlyAccess.priceCents
           : SUBSCRIPTION_PHASES.proNormal.priceCents,
@@ -611,8 +638,8 @@ export async function activateTrialFromSubscription(
         renewsAt,
         endsAt,
         subscriptionPlanId: "pro",
-        subscriptionMonthlyCredits: 0,
-        subscriptionCreditBalance: 0,
+        subscriptionMonthlyCredits: planMonthlyCredits,
+        subscriptionCreditBalance: planMonthlyCredits,
         subscriptionPriceCents: earlyAccessTrial
           ? SUBSCRIPTION_PHASES.proEarlyAccess.priceCents
           : SUBSCRIPTION_PHASES.proNormal.priceCents,
@@ -642,7 +669,7 @@ export async function activateTrialFromSubscription(
     title: "Pro trial activated",
     body: "Your free trial has started. 500 trial credits added.",
     dedupeKey: `subscription_start:${subscriptionId}`,
-    metadata: { subscriptionId, trialBalance: 500, earlyAccessTrial },
+    metadata: { subscriptionId, trialBalance: 500, subscriptionCredits: planMonthlyCredits, earlyAccessTrial },
   });
 
   if (attributes?.customer_id) {
@@ -729,11 +756,17 @@ export async function syncSubscriptionLifecycle(
   });
 
   if (nextStatus === SubscriptionStatus.CANCELED) {
+    const formattedEndsAt = (parseDate(attributes?.ends_at) ?? existingSub.endsAt ?? existingSub.renewsAt)?.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }) ?? "the end of the billing period";
+
     await createAppMessage({
       userId: existingSub.userId,
       type: "subscription_cancel",
       title: "Subscription cancelled",
-      body: "Your plan remains active until the end of the billing period.",
+      body: `Your plan remains active until ${formattedEndsAt}. No further charges.`,
       dedupeKey: `subscription_cancel:${subscriptionId}`,
       metadata: { subscriptionId, previousStatus, nextStatus },
     });
@@ -831,9 +864,7 @@ export async function allocateSubscriptionCredits(
     await tx.subscription.update({
       where: { providerSubscriptionId: subscriptionId },
       data: {
-        subscriptionCreditBalance: isNewBillingPeriod
-          ? phase.monthlyCredits
-          : existingSub.subscriptionCreditBalance,
+        subscriptionCreditBalance: phase.monthlyCredits,
         subscriptionPlanId: planId,
         subscriptionMonthlyCredits: phase.monthlyCredits,
         subscriptionPriceCents: nextPriceCents,
@@ -900,7 +931,7 @@ export async function allocateSubscriptionCredits(
     type: isNewBillingPeriod ? "subscription_renew" : "subscription_start",
     title: isNewBillingPeriod ? "Subscription renewed" : "Pro plan activated",
     body: isNewBillingPeriod
-      ? `Pro plan renewed · ${phase.monthlyCredits} credits added to your monthly balance.`
+      ? `Pro plan renewed · ${phase.monthlyCredits} credits added · ${fmtUsd(nextPriceCents)} charged`
       : `Pro plan activated · ${phase.monthlyCredits} monthly credits added.`,
     dedupeKey: `${isNewBillingPeriod ? "subscription_renew" : "subscription_start"}:${subscriptionId}:${nextPeriodStartedAt.toISOString()}`,
     metadata: {
