@@ -3,7 +3,6 @@
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import {
-  EARLY_ACCESS_PLANS,
   FREE_SCAN_PRICES,
   SCAN_PRICES,
   type EarlyAccessPlanId,
@@ -422,8 +421,8 @@ function PlanHero({
     );
   }
 
-  const plan = EARLY_ACCESS_PLANS[planId];
-  const price = priceCents ?? plan.currentPriceCents;
+  const plan = planId === "basic" ? PLANS.basic : PLANS.pro_ea;
+  const price = priceCents ?? plan.priceCents;
   const isTrialSubscription = status === "ON_TRIAL";
   const totalCredits = monthlyCredits || plan.monthlyCredits;
   const creditsRemaining = subBalance;
@@ -446,11 +445,11 @@ function PlanHero({
   };
   const specs = [
     { label: "Credits / month", val: plan.monthlyCredits.toLocaleString() },
-    { label: "Deep / month", val: String(plan.deepVideoMonthlyLimit) },
+    { label: "Deep / month", val: String(plan.deepVideo ? plan.deepVideoMonthly : 0) },
     { label: "Image scan", val: `${plan.imageCost} cr` },
     { label: "Audio scan", val: `${plan.audioCost} cr` },
     { label: "Short video", val: `${plan.videoShortCost} cr` },
-    { label: "Deep video", val: `${plan.deepVideoCost} cr` },
+    { label: "Deep video", val: plan.deepVideo ? `${plan.deepVideoCost} cr` : "Blocked" },
   ];
 
   return (
@@ -544,13 +543,6 @@ function PlanHero({
                 </div>
               ) : null}
             </div>
-            {loadingMe ? (
-              <SkeletonText className="h-4 w-20" />
-            ) : (
-              <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.4 }}>
-                Status: <span style={{ color: statusMeta.color, fontWeight: 700 }}>{statusMeta.label}</span>
-              </div>
-            )}
           </div>
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, justifyContent: "flex-end" }}>
@@ -871,11 +863,11 @@ function PlanComparisonTable({
     },
     ...PLAN_ORDER.map((key) => ({
       key,
-      name: EARLY_ACCESS_PLANS[key].name,
+      name: getTablePlan(key).name,
       sub: null,
       price: activePlanId === key ? "Your Plan" : key === "basic" ? fmt(PLANS.basic.priceCents) : fmt(proPriceCents),
       showEADiscount: !loadingMe && key === "pro" && activePlanId !== key && showEADiscount,
-      badge: !loadingMe && key === "pro" && activePlanId !== key && !showEADiscount ? "BEST VALUE" : null,
+      badge: !loadingMe && key === "pro" && showEADiscount ? "EARLY ACCESS" : !loadingMe && key === "pro" && activePlanId !== key ? "BEST VALUE" : null,
       highlight: !loadingMe && key === "pro",
       active: activePlanId === key,
       cta: activePlanId === key ? "Current" : "Choose",
@@ -1192,7 +1184,6 @@ function PlanComparisonTable({
                           <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
                             <span style={{ fontSize: 11, color: "var(--text-dim)", textDecoration: "line-through" }}>{fmt(PLANS.pro_normal.priceCents)}</span>
                             <span>{fmt(PLANS.pro_ea.priceCents)} <span>/mo</span></span>
-                            <span style={{ borderRadius: 999, background: "var(--warning-dim)", padding: "2px 7px", fontSize: 9, fontWeight: 800, color: "var(--warning)", letterSpacing: ".04em", textTransform: "uppercase" }}>Early Access</span>
                           </span>
                         ) : plan.price === "Your Plan" ? plan.price : <>{plan.price} <span>/mo</span></>}
                       </div>
@@ -1305,7 +1296,7 @@ function WhyUpgradeCards({
         }}
       >
         {cards.map((c) => {
-          const plan = EARLY_ACCESS_PLANS[c.key];
+          const plan = getTablePlan(c.key);
           const active = activePlanId === c.key;
           const activeTrial = c.key === "pro" && (userState === "ea_trial" || userState === "normal_trial");
           const activePro = c.key === "pro" && (userState === "ea_pro" || userState === "normal_pro" || userState === "loyalty_pro");

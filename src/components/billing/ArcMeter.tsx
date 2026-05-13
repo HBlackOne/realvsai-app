@@ -12,9 +12,10 @@ export default function ArcMeter({ pct = 0, color = "var(--primary)", size = 72,
   const avail = circ - gap;
   const clampedPct = Math.min(Math.max(pct, 0), 1);
   const strokeDashoffset = (1 - clampedPct) * avail;
+  const rotation = 90 + 360 * 0.14;
 
   return (
-    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }} aria-hidden="true">
+    <svg width={size} height={size} style={{ transform: `rotate(${rotation}deg)` }} aria-hidden="true">
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -23,6 +24,7 @@ export default function ArcMeter({ pct = 0, color = "var(--primary)", size = 72,
         stroke="var(--surface3)"
         strokeWidth={strokeWidth}
         strokeDasharray={`${avail} ${gap}`}
+        strokeDashoffset={0}
         strokeLinecap="round"
       />
       <circle

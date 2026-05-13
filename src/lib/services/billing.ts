@@ -14,6 +14,7 @@ import {
   SUBSCRIPTION_PHASES,
   type EarlyAccessPlanId,
 } from "@/lib/billing/pricing.constants";
+import { PLANS } from "@/lib/billing/plans";
 import {
   getSubscriptionPlanByVariantId,
   SUBSCRIPTION_VARIANT_ENVS,
@@ -564,7 +565,8 @@ export async function activateTrialFromSubscription(
 
   const earlyAccessTrial = isEarlyAccessTrialVariant(variantId);
   const phaseKey = earlyAccessTrial ? "proEarlyAccess" : "proNormal";
-  const planMonthlyCredits = getPlanMonthlyCredits(getV5SubscriptionPhaseConfig(phaseKey).id);
+  const planId = getSubscriptionPlanByVariantId(variantId ?? "") ?? "pro_ea";
+  const planMonthlyCredits = PLANS[planId].monthlyCredits;
   const trialEndsAt = parseDate(attributes?.trial_ends_at);
   const renewsAt = parseDate(attributes?.renews_at);
   const endsAt = parseDate(attributes?.ends_at);
@@ -606,7 +608,7 @@ export async function activateTrialFromSubscription(
         currentPeriodEnd: trialEndsAt,
         renewsAt,
         endsAt,
-        subscriptionPlanId: "pro",
+        subscriptionPlanId: planId,
         subscriptionMonthlyCredits: planMonthlyCredits,
         subscriptionCreditBalance: planMonthlyCredits,
         subscriptionPriceCents: earlyAccessTrial
@@ -637,7 +639,7 @@ export async function activateTrialFromSubscription(
         currentPeriodEnd: trialEndsAt,
         renewsAt,
         endsAt,
-        subscriptionPlanId: "pro",
+        subscriptionPlanId: planId,
         subscriptionMonthlyCredits: planMonthlyCredits,
         subscriptionCreditBalance: planMonthlyCredits,
         subscriptionPriceCents: earlyAccessTrial
@@ -904,6 +906,7 @@ export async function allocateSubscriptionCredits(
       data: {
         isPaidUser: true,
         pricingPhase: PricingPhase.GROWTH,
+        trialScanBalance: 0,
         estimatedHiveCostCentsMonth: isNewBillingPeriod ? 0 : undefined,
       },
     });

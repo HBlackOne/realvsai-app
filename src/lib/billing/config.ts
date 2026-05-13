@@ -5,6 +5,7 @@ import {
   type WalletTopupId,
   type EarlyAccessPlanId,
 } from "@/lib/billing/pricing.constants";
+import type { PlanId } from "@/lib/billing/plans";
 
 function env(primary: string, fallback?: string) {
   return process.env[primary] || (fallback ? process.env[fallback] : undefined);
@@ -161,33 +162,27 @@ export function getCheckoutSubscriptionVariantId(
 
 export function getSubscriptionPlanByVariantId(
   variantId: string | number,
-): EarlyAccessPlanId | null {
+): PlanId | null {
   const normalizedVariantId = String(variantId);
+  const planByVariantId: Record<string, PlanId> = {};
 
-  if (
-    SUBSCRIPTION_VARIANT_ENVS.basicNormal &&
-    String(SUBSCRIPTION_VARIANT_ENVS.basicNormal) === normalizedVariantId
-  ) {
-    return "basic";
+  if (SUBSCRIPTION_VARIANT_ENVS.basicNormal) {
+    planByVariantId[String(SUBSCRIPTION_VARIANT_ENVS.basicNormal)] = "basic";
+  }
+  if (SUBSCRIPTION_VARIANT_ENVS.proTrialEarlyAccess) {
+    planByVariantId[String(SUBSCRIPTION_VARIANT_ENVS.proTrialEarlyAccess)] = "pro_ea";
+  }
+  if (SUBSCRIPTION_VARIANT_ENVS.proLoyalty) {
+    planByVariantId[String(SUBSCRIPTION_VARIANT_ENVS.proLoyalty)] = "pro_loyalty";
+  }
+  if (SUBSCRIPTION_VARIANT_ENVS.proTrialNormal) {
+    planByVariantId[String(SUBSCRIPTION_VARIANT_ENVS.proTrialNormal)] = "pro_normal";
+  }
+  if (SUBSCRIPTION_VARIANT_ENVS.proNormal) {
+    planByVariantId[String(SUBSCRIPTION_VARIANT_ENVS.proNormal)] = "pro_normal";
   }
 
-  const proVariantIds = [
-    SUBSCRIPTION_VARIANT_ENVS.proTrialEarlyAccess,
-    SUBSCRIPTION_VARIANT_ENVS.proTrialNormal,
-    SUBSCRIPTION_VARIANT_ENVS.proLoyalty,
-    SUBSCRIPTION_VARIANT_ENVS.proNormal,
-  ];
-
-  if (
-    proVariantIds.some(
-      (mappedVariantId) =>
-        mappedVariantId && String(mappedVariantId) === normalizedVariantId,
-    )
-  ) {
-    return "pro";
-  }
-
-  return null;
+  return planByVariantId[normalizedVariantId] ?? null;
 }
 
 export function assertLemonConfig() {
